@@ -1,6 +1,9 @@
 use crate::{
     audio_player::AudioPlayer,
     event::{AppEvent, Event, EventHandler},
+    machine::Machine,
+    main_menu::MainMenu,
+    menu::Menu,
 };
 use bluer::{Session, agent::AgentHandle};
 use ratatui::{
@@ -8,14 +11,17 @@ use ratatui::{
     crossterm::event::{KeyCode, KeyEvent, KeyModifiers},
 };
 
+pub struct Services {
+    pub player: AudioPlayer,
+}
+
 /// Application.
 pub struct App {
     pub context: String,
-    pub player: AudioPlayer,
+    pub services: Services,
+    pub machine: Machine,
     /// Is the application running?
     pub running: bool,
-    /// Counter.
-    pub counter: u8,
     /// Event handler.
     pub events: EventHandler,
 }
@@ -23,21 +29,21 @@ pub struct App {
 impl App {
     /// Constructs a new instance of [`App`].
     pub fn new() -> Self {
-        let mut res = Self {
+        Self {
             context: format!("{}@{}", whoami::username(), whoami::devicename()),
-            player: AudioPlayer::new(),
+            services: Services {
+                player: AudioPlayer::new(),
+            },
+            machine: Machine::new(),
             running: true,
-            counter: 0,
             events: EventHandler::new(),
-        };
-        res.player.test();
-        res
+        }
     }
 
     /// Run the application's main loop.
     pub async fn run(mut self, mut terminal: DefaultTerminal) -> color_eyre::Result<()> {
         while self.running {
-            terminal.draw(|frame| frame.render_widget(&self, frame.area()))?;
+            terminal.draw(|frame| frame.render_widget(&mut self, frame.area()))?;
             match self.events.next().await? {
                 Event::Tick => self.tick(),
                 Event::Crossterm(event) => match event {
@@ -45,8 +51,9 @@ impl App {
                     _ => {}
                 },
                 Event::App(app_event) => match app_event {
-                    AppEvent::Increment => self.increment_counter(),
-                    AppEvent::Decrement => self.decrement_counter(),
+                    AppEvent::Up => self.up(),
+                    AppEvent::Down => self.down(),
+                    AppEvent::Enter => self.enter(),
                     AppEvent::Quit => self.quit(),
                 },
             }
@@ -61,9 +68,9 @@ impl App {
             KeyCode::Char('c' | 'C') if key_event.modifiers == KeyModifiers::CONTROL => {
                 self.events.send(AppEvent::Quit)
             }
-            KeyCode::Right => self.events.send(AppEvent::Increment),
-            KeyCode::Left => self.events.send(AppEvent::Decrement),
-            // Other handlers you could add here.
+            KeyCode::Up => self.events.send(AppEvent::Up),
+            KeyCode::Down => self.events.send(AppEvent::Down),
+            KeyCode::Enter => self.events.send(AppEvent::Enter),
             _ => {}
         }
         Ok(())
@@ -73,18 +80,24 @@ impl App {
     ///
     /// The tick event is where you can update the state of your application with any logic that
     /// needs to be updated at a fixed frame rate. E.g. polling a server, updating an animation.
-    pub fn tick(&self) {}
+    pub fn tick(&mut self) {
+        self.machine.tick(&mut self.services);
+    }
 
     /// Set running to false to quit the application.
     pub fn quit(&mut self) {
         self.running = false;
     }
 
-    pub fn increment_counter(&mut self) {
-        self.counter = self.counter.saturating_add(1);
+    pub fn enter(&mut self) {
+        self.machine.enter();
     }
 
-    pub fn decrement_counter(&mut self) {
-        self.counter = self.counter.saturating_sub(1);
+    pub fn up(&mut self) {
+        self.machine.up();
+    }
+
+    pub fn down(&mut self) {
+        self.machine.down();
     }
 }

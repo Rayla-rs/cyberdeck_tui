@@ -1,0 +1,23 @@
+---
+config:
+  theme: forest
+---
+flowchart TD
+    r["root"] --> m["music"] & blt["Bluetooth"] & wifi["Wifi"] & quit["Quit"]
+    m --> lib["Library"] & ply["Playlists"]
+    lib -- Select --> Library_Action
+    subgraph Library_Action
+        P1[Play]
+        E1[Enqueue]
+        PN1[Play Next]
+        I1[Info]
+        B1[Back]
+    end
+    ply -- Select --> Playlist_Action
+    subgraph Playlist_Action
+        P2[Play]
+        E2[Enqueue]
+        PN2[Play Next]
+        I2[Info]
+        B2[Back]
+    end
