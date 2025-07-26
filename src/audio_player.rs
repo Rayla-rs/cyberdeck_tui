@@ -1,12 +1,50 @@
 use std::{fs::File, sync::Arc, time::Duration};
 
-use rodio::{Decoder, OutputStream, Sink, Source, source::SineWave};
+use rodio::{
+    Decoder, OutputStream, Sink, Source,
+    source::{EmptyCallback, SineWave},
+};
 
-use crate::AppResult;
+use crate::{AppResult, track::Track};
+use tokio::sync::mpsc;
+
+enum Event {
+    Action(AudioAction),
+}
+
+enum AudioAction {
+    Play,
+    Pause,
+    Next,
+    Previouse,
+    PushBack(Track),
+    PushFront(Track),
+}
+
+struct AudioEventHandler {
+    /// Event sender channel.
+    sender: mpsc::UnboundedSender<Event>,
+    /// Event receiver channel.
+    receiver: mpsc::UnboundedReceiver<Event>,
+}
+impl AudioEventHandler {
+    /// Constructs a new instance of [`EventHandler`] and spawns a new thread to handle events.
+    pub fn new() -> Self {
+        let (sender, receiver) = mpsc::unbounded_channel();
+        // let actor = EventTask::new(sender.clone());
+        // tokio::spawn(async { actor.run().await });
+        Self { sender, receiver }
+    }
+}
 
 pub struct AudioPlayer {
     stream_handle: OutputStream,
     sink: Sink,
+    // History
+    // Future (queue)
+    current: Option<Track>,
+    queue: Vec<Track>,
+    history: Vec<Track>,
 }
 
 impl AudioPlayer {
@@ -17,16 +55,23 @@ impl AudioPlayer {
         Self {
             stream_handle,
             sink,
+            current: None,
+            queue: vec![],
+            history: vec![],
         }
     }
 
+    pub fn stuff(&self) {}
+
+    // TODO tick
+    //
+    //
     pub fn enqueue(&mut self, track: File) -> AppResult<()> {
         let decoder = Decoder::try_from(track)?;
         self.sink.append(decoder);
+        // self.sink.append(EmptyCallback::new(Box::new(|| {})));
         Ok(())
     }
-
-    pub fn play<T: Source>(&mut self, source: File) {}
 
     pub fn pause(&mut self) {
         self.sink.pause();

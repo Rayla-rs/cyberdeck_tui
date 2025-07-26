@@ -10,7 +10,7 @@ use std::{
 
 pub struct Track {
     path: PathBuf,
-    tags: Box<dyn AudioTag>,
+    tags: Box<dyn AudioTag>, // Refactor to make less err prone
     decoder: Decoder<BufReader<File>>,
 }
 
@@ -30,4 +30,12 @@ impl Track {
         self.decoder.total_duration()
     }
     pub fn get_extension(&self) {}
+
+    pub fn data(&self) -> [String; 3] {
+        [
+            self.tags.title().unwrap_or_default().to_string(),
+            self.tags.artist().unwrap_or_default().to_string(),
+            chrono::Duration::seconds(self.tags.duration().unwrap_or_default() as i64).to_string(),
+        ]
+    }
 }

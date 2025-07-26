@@ -21,10 +21,12 @@ impl Machine {
         }
     }
 
-    pub fn enter(&mut self) {
+    pub fn enter(&mut self) -> AppResult<()> {
         if let Some(menu) = self.stack.last_mut() {
-            menu.enter();
+            let inst = menu.enter()?;
+            self.handle_instruction(inst);
         }
+        Ok(())
     }
     pub fn up(&mut self) {
         if let Some(menu) = self.stack.last_mut() {
@@ -67,5 +69,9 @@ impl Machine {
         Ok(for menu in self.stack.iter_mut() {
             area = menu.render(area, buf)?
         })
+    }
+
+    pub fn is_running(&self) -> bool {
+        !self.stack.is_empty()
     }
 }

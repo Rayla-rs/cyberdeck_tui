@@ -6,6 +6,7 @@ use crate::{
     menu::Menu,
 };
 use bluer::{Session, agent::AgentHandle};
+use bluetui::app::AppResult;
 use ratatui::{
     DefaultTerminal,
     crossterm::event::{KeyCode, KeyEvent, KeyModifiers},
@@ -41,8 +42,8 @@ impl App {
     }
 
     /// Run the application's main loop.
-    pub async fn run(mut self, mut terminal: DefaultTerminal) -> color_eyre::Result<()> {
-        while self.running {
+    pub async fn run(mut self, mut terminal: DefaultTerminal) -> AppResult<()> {
+        while self.running && self.machine.is_running() {
             terminal.draw(|frame| frame.render_widget(&mut self, frame.area()))?;
             match self.events.next().await? {
                 Event::Tick => self.tick(),
@@ -53,7 +54,9 @@ impl App {
                 Event::App(app_event) => match app_event {
                     AppEvent::Up => self.up(),
                     AppEvent::Down => self.down(),
-                    AppEvent::Enter => self.enter(),
+                    AppEvent::Enter => {
+                        self.enter()?;
+                    }
                     AppEvent::Quit => self.quit(),
                 },
             }
@@ -89,8 +92,8 @@ impl App {
         self.running = false;
     }
 
-    pub fn enter(&mut self) {
-        self.machine.enter();
+    pub fn enter(&mut self) -> AppResult<()> {
+        self.machine.enter()
     }
 
     pub fn up(&mut self) {

@@ -13,6 +13,7 @@ mod main_menu;
 mod menu;
 mod playlist;
 mod track;
+mod track_widget;
 pub mod ui;
 
 pub type Error = Box<dyn std::error::Error>;

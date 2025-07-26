@@ -4,10 +4,13 @@ use chrono::Local;
 use color_eyre::owo_colors::OwoColorize;
 use ratatui::{
     buffer::Buffer,
-    layout::{Alignment, Rect},
+    layout::{Alignment, Constraint, Direction, Layout, Margin, Rect},
     style::{Color, Stylize},
     text::Line,
-    widgets::{Block, BorderType, Paragraph, Table, Widget},
+    widgets::{
+        Bar, Block, BorderType, LineGauge, Paragraph, Scrollbar, ScrollbarState, StatefulWidget,
+        Table, Widget,
+    },
 };
 
 use crate::app::App;
@@ -20,6 +23,11 @@ impl Widget for &mut App {
     // - https://docs.rs/ratatui/latest/ratatui/widgets/index.html
     // - https://github.com/ratatui/ratatui/tree/master/examples
     fn render(self, area: Rect, buf: &mut Buffer) {
+        let layout = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([Constraint::Length(5), Constraint::Min(1)])
+            .split(area);
+
         let block = Block::bordered()
             .title(self.context.clone())
             .title(
@@ -29,10 +37,23 @@ impl Widget for &mut App {
             .title_alignment(Alignment::Center)
             .border_type(BorderType::Plain);
 
+        LineGauge::default()
+            .ratio(0.4)
+            .label("0:30|4:32")
+            .block(
+                Block::bordered()
+                    .title("Track...")
+                    .border_type(BorderType::Plain),
+            )
+            .render(layout[1].inner(Margin::default()), buf);
+
+        // Render menus
         self.machine
-            .render(block.inner(area), buf)
+            .render(block.inner(layout[0].inner(Margin::default())), buf)
             .expect("Render Error: ");
-        block.render(area, buf);
+
+        // Render blocks
+        block.render(layout[0].inner(Margin::default()), buf);
     }
 }
 

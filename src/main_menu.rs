@@ -5,7 +5,7 @@ use ratatui::{
     widgets::{List, ListItem, ListState, StatefulWidget},
 };
 
-use crate::{AppResult, app::Services, menu::Menu};
+use crate::{AppResult, app::Services, machine::Instruction, menu::Menu};
 
 enum Options {
     Music,
@@ -13,6 +13,7 @@ enum Options {
     Bluetooth,
     Reboot,
 }
+// Add menu to look at launch errs
 
 impl Display for Options {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -48,6 +49,17 @@ impl Menu for MainMenu {
     }
     fn down(&mut self) {
         self.state.select_next();
+    }
+    fn enter(&mut self) -> AppResult<Instruction> {
+        Ok(
+            match OPTIONS
+                .get(self.state.selected().ok_or("Selection empty")?)
+                .ok_or("Index out of bounds in Main Menu!")?
+            {
+                Options::Reboot => Instruction::Next,
+                _ => Instruction::Continue,
+            },
+        )
     }
     fn tick(&mut self, service: &mut Services) -> AppResult<crate::machine::Instruction> {
         Ok(crate::machine::Instruction::Continue)
