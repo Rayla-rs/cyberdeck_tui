@@ -2,10 +2,12 @@ use std::fmt::Display;
 
 use ratatui::{
     style::Stylize,
-    widgets::{List, ListItem, ListState, StatefulWidget},
+    widgets::{HighlightSpacing, List, ListItem, ListState, StatefulWidget},
 };
 
-use crate::{AppResult, config::Config, machine::Instruction, menus::menu::Menu};
+use crate::{
+    AppResult, app_actions::AppAction, config::Config, machine::Instruction, menus::menu::Menu,
+};
 
 use super::{
     menu::{MenuState, NavigationResult},
@@ -63,29 +65,33 @@ impl Menu for MainMenu {
         OPTIONS.len()
     }
 
-    fn enter(&mut self) -> AppResult<Instruction> {
-        Ok(
-            match OPTIONS
-                .get(self.state.selected().ok_or("Selection empty")?)
-                .ok_or("Index out of bounds in Main Menu!")?
-            {
-                Options::Reboot => Instruction::Pop,
-                Options::Music => Instruction::Push(Box::new(PlaylistMenu::new(
-                    Config::new().unwrap().load_playlists().collect(),
-                ))),
-                _ => Instruction::Continue,
-            },
-        )
+    fn enter(&mut self) -> AppResult<AppAction> {
+        Ok(match OPTIONS
+            .get(self.state.selected().ok_or("Selection empty")?)
+            .ok_or("Index out of bounds in Main Menu!")?
+        {
+            Options::Reboot => Instruction::Pop,
+            Options::Music => Instruction::Push(Box::new(PlaylistMenu::new(
+                Config::new().unwrap().load_playlists().collect(),
+            ))),
+            _ => Instruction::Continue,
+        }
+        .into())
     }
 
     fn render(
         &mut self,
         area: ratatui::prelude::Rect,
         buf: &mut ratatui::prelude::Buffer,
+        focused: bool,
     ) -> AppResult<ratatui::prelude::Rect> {
         let list = List::new(OPTIONS)
             .highlight_symbol(">")
-            .highlight_spacing(ratatui::widgets::HighlightSpacing::Always)
+            .highlight_spacing(if focused {
+                HighlightSpacing::Always
+            } else {
+                HighlightSpacing::Never
+            })
             .yellow();
         StatefulWidget::render(list, area.clone(), buf, &mut self.state);
         Ok(area)

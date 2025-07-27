@@ -1,11 +1,11 @@
 use std::fmt::Display;
 
-use crate::playlist::Playlist;
+use crate::{machine::Instruction, playlist::Playlist};
 
 use super::menu::{Menu, MenuState};
 use ratatui::{
     prelude::*,
-    widgets::{Cell, Row, Table, TableState},
+    widgets::{Cell, HighlightSpacing, Row, Table, TableState},
 };
 
 pub struct PlaylistMenu {
@@ -28,7 +28,11 @@ impl Menu for PlaylistMenu {
         self.playlists.len()
     }
 
-    fn render(&mut self, area: Rect, buf: &mut Buffer) -> crate::AppResult<Rect> {
+    fn get_quick_actions(&self) -> Vec<crate::app_actions::AppAction> {
+        vec![Instruction::Pop.into(), Instruction::Continue.into()]
+    }
+
+    fn render(&mut self, area: Rect, buf: &mut Buffer, focused: bool) -> crate::AppResult<Rect> {
         ratatui::widgets::Clear::default().render(area, buf);
 
         let header = ["Title", "Tracks", "Duration"]
@@ -43,7 +47,11 @@ impl Menu for PlaylistMenu {
         )
         .header(header)
         .highlight_symbol(">")
-        .highlight_spacing(ratatui::widgets::HighlightSpacing::Always);
+        .highlight_spacing(if focused {
+            HighlightSpacing::Always
+        } else {
+            HighlightSpacing::Never
+        });
 
         StatefulWidget::render(table, area, buf, &mut self.state);
         Ok(area)

@@ -6,7 +6,10 @@ use ratatui::{
     widgets::{Block, BorderType, LineGauge, Widget},
 };
 
-use crate::app::App;
+use crate::{
+    app::{App, Focus},
+    menus::menu::Menu,
+};
 
 impl Widget for &mut App {
     /// Renders the user interface widgets.
@@ -40,6 +43,8 @@ impl Widget for &mut App {
             )
             .render(layout[1].inner(Margin::default()), buf);
 
+        let main_layout = layout[0].inner(Margin::default());
+
         // Render menus
         let quick_widget_height = self.quick_menu.get_height().try_into().unwrap();
         if quick_widget_height > 0 {
@@ -47,19 +52,24 @@ impl Widget for &mut App {
                 Direction::Vertical,
                 [Constraint::Fill(1), Constraint::Length(quick_widget_height)],
             )
-            .split(block.inner(layout[0].inner(Margin::default())));
+            .split(block.inner(main_layout));
 
             self.machine
-                .render(menu_layout[0], buf)
+                .render(menu_layout[0], buf, Focus::MachineMenu == self.focus)
                 .expect("Render Error: ");
 
-            self.quick_menu.render(menu_layout[1], buf);
+            let _ = self
+                .quick_menu
+                .render(menu_layout[1], buf, Focus::QuickMenu == self.focus);
         } else {
-            self.machine.render(layout[0], buf).expect("Render Error: ");
+            self.focus = Focus::MachineMenu;
+            self.machine
+                .render(block.inner(main_layout), buf, true)
+                .expect("Render Error: ");
         }
 
         // Render blocks
-        block.render(layout[0].inner(Margin::default()), buf);
+        block.render(main_layout, buf);
     }
 }
 

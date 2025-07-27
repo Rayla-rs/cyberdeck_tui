@@ -6,12 +6,12 @@ use ratatui::{
     widgets::{ListState, TableState},
 };
 
-use crate::{AppResult, app::AppState, machine::Instruction};
+use crate::{AppResult, app::AppState, app_actions::AppAction, machine::Instruction};
 
 pub enum NavigationResult {
     Ok,
-    Underflow,
-    Overflow,
+    Previous,
+    Next,
 }
 
 pub trait Menu: Display {
@@ -23,8 +23,7 @@ pub trait Menu: Display {
         let state = self.get_state();
         if let Some(selected) = state.selected() {
             if selected == 0 {
-                state.select(None);
-                NavigationResult::Underflow
+                NavigationResult::Previous
             } else {
                 state.select_previous();
                 NavigationResult::Ok
@@ -42,10 +41,8 @@ pub trait Menu: Display {
         state.select_next();
         if let Some(selected) = state.selected() {
             if selected >= len {
-                state.select(None);
-                NavigationResult::Overflow
+                NavigationResult::Next
             } else {
-                state.select_next();
                 NavigationResult::Ok
             }
         } else {
@@ -54,13 +51,18 @@ pub trait Menu: Display {
         }
     }
 
-    fn enter(&mut self) -> AppResult<Instruction> {
-        Ok(Instruction::Continue)
+    fn enter(&mut self) -> AppResult<AppAction> {
+        Ok(Instruction::Continue.into())
     }
+
+    fn get_quick_actions(&self) -> Vec<AppAction> {
+        vec![]
+    }
+
     fn tick(&mut self, _app_state: &mut AppState) -> AppResult<Instruction> {
         Ok(Instruction::Continue)
     }
-    fn render(&mut self, area: Rect, buf: &mut Buffer) -> AppResult<Rect>;
+    fn render(&mut self, area: Rect, buf: &mut Buffer, focused: bool) -> AppResult<Rect>;
 }
 
 pub trait MenuState {
@@ -68,6 +70,8 @@ pub trait MenuState {
     fn selected(&self) -> Option<usize>;
     fn select_next(&mut self);
     fn select_previous(&mut self);
+    fn select_first(&mut self);
+    fn select_last(&mut self);
 }
 
 impl MenuState for ListState {
@@ -83,6 +87,12 @@ impl MenuState for ListState {
     fn select_previous(&mut self) {
         self.select_previous();
     }
+    fn select_first(&mut self) {
+        self.select_first();
+    }
+    fn select_last(&mut self) {
+        self.select_last();
+    }
 }
 
 impl MenuState for TableState {
@@ -97,5 +107,11 @@ impl MenuState for TableState {
     }
     fn select_previous(&mut self) {
         self.select_previous();
+    }
+    fn select_first(&mut self) {
+        self.select_next();
+    }
+    fn select_last(&mut self) {
+        self.select_last();
     }
 }

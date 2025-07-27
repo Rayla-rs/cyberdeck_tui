@@ -2,38 +2,15 @@ use std::fmt::Display;
 
 use ratatui::{
     prelude::*,
-    widgets::{Block, Borders, List, ListItem, ListState},
+    text::ToLine,
+    widgets::{Block, Borders, HighlightSpacing, List, ListState},
 };
 
-use crate::{AppResult, app::AppState, machine::Instruction, menus::menu::Menu};
-
-pub trait StateAction: Display {
-    fn mutate_state(self, state: &mut AppState);
-}
-
-pub enum QuickActions {
-    MachineInstruction(Instruction),
-    MutateState(Box<dyn StateAction>),
-}
-
-impl Display for QuickActions {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::MachineInstruction(instruction) => f.write_fmt(format_args!("{}", instruction)),
-            Self::MutateState(state_action) => f.write_fmt(format_args!("{}", state_action)),
-        }
-    }
-}
-
-impl<'a> Into<ListItem<'a>> for &QuickActions {
-    fn into(self) -> ListItem<'a> {
-        ListItem::new(format!("{self}"))
-    }
-}
+use crate::{AppResult, app_actions::AppAction, machine::Instruction, menus::menu::Menu};
 
 pub struct QuickMenu {
-    state: ListState,
-    actions: Vec<QuickActions>,
+    pub actions: Vec<AppAction>,
+    pub state: ListState,
 }
 
 impl Display for QuickMenu {
@@ -51,7 +28,12 @@ impl Menu for QuickMenu {
         self.actions.len()
     }
 
-    fn render(&mut self, area: Rect, buf: &mut Buffer) -> AppResult<Rect>
+    fn enter(&mut self) -> AppResult<AppAction> {
+        let index = self.state.selected().unwrap();
+        Ok(self.actions.remove(index))
+    }
+
+    fn render(&mut self, area: Rect, buf: &mut Buffer, focused: bool) -> AppResult<Rect>
     where
         Self: Sized,
     {
@@ -59,7 +41,11 @@ impl Menu for QuickMenu {
             .block(Block::new().borders(Borders::TOP))
             .items(self.actions.iter())
             .highlight_symbol(">")
-            .highlight_spacing(ratatui::widgets::HighlightSpacing::Always);
+            .highlight_spacing(if focused {
+                HighlightSpacing::Always
+            } else {
+                HighlightSpacing::Never
+            });
 
         StatefulWidget::render(list, area, buf, &mut self.state);
         Ok(area)
@@ -68,9 +54,11 @@ impl Menu for QuickMenu {
 
 impl QuickMenu {
     pub fn new() -> Self {
+        let mut state = ListState::default();
+        state.select_next();
         Self {
             state: ListState::default(),
-            actions: vec![QuickActions::MachineInstruction(Instruction::Pop)],
+            actions: vec![AppAction::MachineAction(Instruction::Pop)],
         }
     }
 

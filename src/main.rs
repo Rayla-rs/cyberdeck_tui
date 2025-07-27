@@ -3,6 +3,7 @@ use config::Config;
 use crate::app::App;
 
 pub mod app;
+pub mod app_actions;
 mod audio_player;
 pub mod config;
 pub mod event;

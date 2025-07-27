@@ -1,14 +1,11 @@
-use std::{fmt::Display, io::Cursor};
+use std::fmt::Display;
 
 use ratatui::{buffer::Buffer, layout::Rect};
 
 use crate::{
     AppResult,
     app::AppState,
-    menus::{
-        main_menu::MainMenu,
-        menu::{Menu, NavigationResult},
-    },
+    menus::{main_menu::MainMenu, menu::Menu},
 };
 
 pub enum Instruction {
@@ -56,28 +53,12 @@ impl Machine {
         }
     }
 
-    pub fn enter(&mut self) -> AppResult<()> {
-        if let Some(menu) = self.stack.last_mut() {
-            let inst = menu.enter()?;
-            self.handle_instruction(inst);
-        }
-        Ok(())
+    pub fn last_mut(&mut self) -> &mut Box<dyn Menu> {
+        self.stack.last_mut().unwrap()
     }
 
-    pub fn up(&mut self) -> NavigationResult {
-        if let Some(menu) = self.stack.last_mut() {
-            menu.up()
-        } else {
-            NavigationResult::Ok
-        }
-    }
-
-    pub fn down(&mut self) -> NavigationResult {
-        if let Some(menu) = self.stack.last_mut() {
-            menu.down()
-        } else {
-            NavigationResult::Ok
-        }
+    pub fn last(&self) -> &Box<dyn Menu> {
+        self.stack.last().unwrap()
     }
 
     pub fn tick(&mut self, app_state: &mut AppState) -> AppResult<()> {
@@ -105,10 +86,19 @@ impl Machine {
     }
 
     /// Render menus from old to new
-    pub fn render(&mut self, area: Rect, buf: &mut Buffer) -> AppResult<()> {
+    pub fn render(&mut self, area: Rect, buf: &mut Buffer, focused: bool) -> AppResult<()> {
         let mut area = area;
-        Ok(for menu in self.stack.iter_mut() {
-            area = menu.render(area, buf)?
+        let mut iter = self.stack.iter_mut().peekable();
+        Ok(while let Some(menu) = iter.next() {
+            area = menu.render(
+                area,
+                buf,
+                if iter.peek().is_none() {
+                    focused
+                } else {
+                    false
+                },
+            )?
         })
     }
 
