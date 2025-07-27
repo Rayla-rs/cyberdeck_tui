@@ -1,5 +1,9 @@
 use std::path::PathBuf;
 
+use ratatui::{
+    text::Text,
+    widgets::{Cell, Row},
+};
 use serde::Deserialize;
 
 use crate::track::Track;
@@ -8,6 +12,25 @@ pub struct Playlist {
     pub title: String,
     pub tracks: Vec<Track>,
     pub path: PathBuf,
+}
+
+impl Playlist {
+    pub fn data(&self) -> [String; 3] {
+        [
+            self.title.clone(),
+            self.tracks.len().to_string(),
+            String::from("DURATION"),
+        ]
+    }
+}
+
+impl<'a> Into<Row<'a>> for &'a Playlist {
+    fn into(self) -> Row<'a> {
+        self.data()
+            .iter()
+            .map(|elem| Cell::from(Text::from(format!("{elem}"))))
+            .collect()
+    }
 }
 
 impl TryFrom<PathBuf> for Playlist {
@@ -27,7 +50,8 @@ impl TryFrom<PlyData> for Playlist {
                 .iter()
                 .filter_map(|track| {
                     let mut path = value.path.clone();
-                    path.push(track);
+                    let _ = path.pop();
+                    path.push(format!("\\{track}"));
                     Track::try_from(path).ok()
                 })
                 .collect::<Vec<_>>(),

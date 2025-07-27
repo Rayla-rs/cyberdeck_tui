@@ -22,6 +22,13 @@ impl TrackWidget {
     pub fn enter(&mut self) {
         todo!()
     }
+
+    pub fn new() -> Self {
+        Self {
+            state: TableState::new(),
+            tracks: vec![],
+        }
+    }
 }
 
 impl Widget for &mut TrackWidget {

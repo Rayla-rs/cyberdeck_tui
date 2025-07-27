@@ -1,9 +1,6 @@
-use std::{fs::File, sync::Arc, time::Duration};
+use std::{fs::File, time::Duration};
 
-use rodio::{
-    Decoder, OutputStream, Sink, Source,
-    source::{EmptyCallback, SineWave},
-};
+use rodio::{Decoder, OutputStream, Sink, Source, source::SineWave};
 
 use crate::{AppResult, track::Track};
 use tokio::sync::mpsc;

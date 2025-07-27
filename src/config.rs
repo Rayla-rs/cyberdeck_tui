@@ -1,6 +1,6 @@
 use serde::Deserialize;
 
-use crate::AppResult;
+use crate::{AppResult, playlist::Playlist};
 
 #[derive(Deserialize, Debug)]
 pub struct Config {
@@ -25,11 +25,11 @@ impl Config {
         )?)?)
     }
 
-    fn get_music_dir(&self) {
+    pub fn load_playlists(&self) -> impl Iterator<Item = Playlist> {
         std::fs::read_dir(self.music_dir.clone())
-            .unwrap()
-            .for_each(|elem| {
-                elem.unwrap().file_type().unwrap().is_dir();
-            });
+            .into_iter()
+            .flat_map(|read_dir| {
+                read_dir.filter_map(|entry| Some(Playlist::try_from(entry.ok()?.path()).ok()?))
+            })
     }
 }

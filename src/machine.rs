@@ -1,8 +1,8 @@
-use std::io::Cursor;
+use std::{fmt::Display, io::Cursor};
 
 use ratatui::{buffer::Buffer, layout::Rect};
 
-use crate::{AppResult, app::Services, main_menu::MainMenu, menu::Menu};
+use crate::{AppResult, app::Services, menus::main_menu::MainMenu, menus::menu::Menu};
 
 pub enum Instruction {
     Continue,
@@ -12,6 +12,19 @@ pub enum Instruction {
 }
 pub struct Machine {
     stack: Vec<Box<dyn Menu>>,
+}
+
+impl Display for Machine {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(
+            self.stack
+                .iter()
+                .map(|menu| format!("{}", menu))
+                .collect::<Vec<_>>()
+                .join("/")
+                .as_str(),
+        )
+    }
 }
 
 impl Machine {

@@ -1,11 +1,9 @@
 use crate::{
     audio_player::AudioPlayer,
+    config::Config,
     event::{AppEvent, Event, EventHandler},
     machine::Machine,
-    main_menu::MainMenu,
-    menu::Menu,
 };
-use bluer::{Session, agent::AgentHandle};
 use bluetui::app::AppResult;
 use ratatui::{
     DefaultTerminal,
@@ -14,6 +12,7 @@ use ratatui::{
 
 pub struct Services {
     pub player: AudioPlayer,
+    pub config: Config,
 }
 
 /// Application.
@@ -34,6 +33,7 @@ impl App {
             context: format!("{}@{}", whoami::username(), whoami::devicename()),
             services: Services {
                 player: AudioPlayer::new(),
+                config: Config::new().expect("AHHHHH!!!"),
             },
             machine: Machine::new(),
             running: true,

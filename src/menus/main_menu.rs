@@ -5,7 +5,9 @@ use ratatui::{
     widgets::{List, ListItem, ListState, StatefulWidget},
 };
 
-use crate::{AppResult, app::Services, machine::Instruction, menu::Menu};
+use crate::{AppResult, app::Services, config::Config, machine::Instruction, menus::menu::Menu};
+
+use super::playlist_menu::PlaylistMenu;
 
 enum Options {
     Music,
@@ -43,6 +45,12 @@ pub struct MainMenu {
     state: ListState,
 }
 
+impl Display for MainMenu {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("main")
+    }
+}
+
 impl Menu for MainMenu {
     fn up(&mut self) {
         self.state.select_previous();
@@ -57,6 +65,9 @@ impl Menu for MainMenu {
                 .ok_or("Index out of bounds in Main Menu!")?
             {
                 Options::Reboot => Instruction::Next,
+                Options::Music => Instruction::Push(Box::new(PlaylistMenu::new(
+                    Config::new().unwrap().load_playlists().collect(),
+                ))),
                 _ => Instruction::Continue,
             },
         )

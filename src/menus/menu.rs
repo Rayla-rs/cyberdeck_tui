@@ -1,8 +1,10 @@
+use std::fmt::Display;
+
 use ratatui::{buffer::Buffer, layout::Rect};
 
 use crate::{AppResult, app::Services, machine::Instruction};
 
-pub trait Menu {
+pub trait Menu: Display {
     fn up(&mut self) {}
     fn down(&mut self) {}
     fn enter(&mut self) -> AppResult<Instruction> {

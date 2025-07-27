@@ -5,16 +5,15 @@ use crate::app::App;
 
 pub mod app;
 mod audio_player;
-pub mod blt_menu;
 pub mod config;
 pub mod event;
 mod machine;
-mod main_menu;
-mod menu;
+pub mod menus;
 mod playlist;
 mod track;
 mod track_widget;
 pub mod ui;
+pub mod widgets;
 
 pub type Error = Box<dyn std::error::Error>;
 pub type AppResult<T> = std::result::Result<T, Error>;
@@ -28,3 +27,5 @@ async fn main() -> AppResult<()> {
     ratatui::restore();
     Ok(())
 }
+
+// TODO make "corupted" text using rng for fun when bad meta data
