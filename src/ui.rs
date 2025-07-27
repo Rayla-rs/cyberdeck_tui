@@ -41,9 +41,22 @@ impl Widget for &mut App {
             .render(layout[1].inner(Margin::default()), buf);
 
         // Render menus
-        self.machine
-            .render(block.inner(layout[0].inner(Margin::default())), buf)
-            .expect("Render Error: ");
+        let quick_widget_height = self.quick_widget.get_height().try_into().unwrap();
+        if quick_widget_height > 0 {
+            let menu_layout = Layout::new(
+                Direction::Vertical,
+                [Constraint::Fill(1), Constraint::Length(quick_widget_height)],
+            )
+            .split(block.inner(layout[0].inner(Margin::default())));
+
+            self.machine
+                .render(menu_layout[0], buf)
+                .expect("Render Error: ");
+
+            self.quick_widget.render(menu_layout[1], buf);
+        } else {
+            self.machine.render(layout[0], buf).expect("Render Error: ");
+        }
 
         // Render blocks
         block.render(layout[0].inner(Margin::default()), buf);

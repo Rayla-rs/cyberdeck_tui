@@ -3,6 +3,7 @@ use crate::{
     config::Config,
     event::{AppEvent, Event, EventHandler},
     machine::Machine,
+    widgets::quick_widget::QuickWidget,
 };
 use bluetui::app::AppResult;
 use ratatui::{
@@ -10,16 +11,23 @@ use ratatui::{
     crossterm::event::{KeyCode, KeyEvent, KeyModifiers},
 };
 
-pub struct Services {
+pub struct AppState {
     pub player: AudioPlayer,
     pub config: Config,
+}
+
+pub enum Focus {
+    MachineMenu,
+    QuickMenu,
 }
 
 /// Application.
 pub struct App {
     pub context: String,
-    pub services: Services,
+    pub services: AppState,
     pub machine: Machine,
+    pub quick_widget: QuickWidget,
+    pub focus: Focus,
     /// Is the application running?
     pub running: bool,
     /// Event handler.
@@ -31,11 +39,13 @@ impl App {
     pub fn new() -> Self {
         Self {
             context: format!("{}@{}", whoami::username(), whoami::devicename()),
-            services: Services {
+            services: AppState {
                 player: AudioPlayer::new(),
                 config: Config::new().expect("AHHHHH!!!"),
             },
             machine: Machine::new(),
+            quick_widget: QuickWidget::new(),
+            focus: Focus::MachineMenu,
             running: true,
             events: EventHandler::new(),
         }
@@ -93,7 +103,10 @@ impl App {
     }
 
     pub fn enter(&mut self) -> AppResult<()> {
-        self.machine.enter()
+        match self.focus {
+            Focus::MachineMenu => self.machine.enter(),
+            Focus::QuickMenu => self.quick_widget.enter(),
+        }
     }
 
     pub fn up(&mut self) {

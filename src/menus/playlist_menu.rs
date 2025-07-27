@@ -6,43 +6,7 @@ use crate::{
 };
 
 use super::menu::Menu;
-use ratatui::{
-    prelude::*,
-    widgets::{Block, Borders, List, ListState, Paragraph},
-};
-
-// Back
-// Play
-// Pause
-// ...
-struct LowerMenu {
-    state: ListState,
-    stuff: Vec<()>,
-}
-
-impl LowerMenu {
-    fn new() -> Self {
-        Self {
-            state: ListState::default(),
-            stuff: vec![],
-        }
-    }
-}
-
-impl Widget for &mut LowerMenu {
-    fn render(self, area: Rect, buf: &mut Buffer)
-    where
-        Self: Sized,
-    {
-        // TODO hide when empty
-        let list = List::default()
-            .block(Block::new().borders(Borders::TOP))
-            .items(["Back", "Pause", "..."])
-            .highlight_symbol(">")
-            .highlight_spacing(ratatui::widgets::HighlightSpacing::Always);
-        StatefulWidget::render(list, area, buf, &mut self.state);
-    }
-}
+use ratatui::prelude::*;
 
 pub struct PlaylistMenu {
     widget: PlaylistWidget,
@@ -56,12 +20,14 @@ impl Display for PlaylistMenu {
 }
 
 impl Menu for PlaylistMenu {
-    fn up(&mut self) {
-        self.widget.up();
+    fn get_state(&mut self) -> &mut impl super::menu::MenuState {
+        &mut self.widget.state
     }
-    fn down(&mut self) {
-        self.widget.down();
+
+    fn get_len(&self) -> usize {
+        self.widget.playlists.len()
     }
+
     fn enter(&mut self) -> crate::AppResult<Instruction> {
         // TODO
         Ok(Instruction::Continue)
@@ -75,7 +41,7 @@ impl Menu for PlaylistMenu {
         ratatui::widgets::Clear::default().render(area, buf);
 
         self.widget.render(layout[0], buf);
-        LowerMenu::new().render(layout[1], buf);
+
         Ok(area)
     }
 }

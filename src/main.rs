@@ -1,5 +1,4 @@
 use config::Config;
-use ratatui::{buffer::Buffer, layout::Rect, widgets::Widget};
 
 use crate::app::App;
 

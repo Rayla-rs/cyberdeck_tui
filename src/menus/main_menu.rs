@@ -5,9 +5,12 @@ use ratatui::{
     widgets::{List, ListItem, ListState, StatefulWidget},
 };
 
-use crate::{AppResult, app::Services, config::Config, machine::Instruction, menus::menu::Menu};
+use crate::{AppResult, config::Config, machine::Instruction, menus::menu::Menu};
 
-use super::playlist_menu::PlaylistMenu;
+use super::{
+    menu::{MenuState, NavigationResult},
+    playlist_menu::PlaylistMenu,
+};
 
 enum Options {
     Music,
@@ -52,28 +55,27 @@ impl Display for MainMenu {
 }
 
 impl Menu for MainMenu {
-    fn up(&mut self) {
-        self.state.select_previous();
+    fn get_state(&mut self) -> &mut impl MenuState {
+        &mut self.state
     }
-    fn down(&mut self) {
-        self.state.select_next();
+
+    fn get_len(&self) -> usize {
+        OPTIONS.len()
     }
+
     fn enter(&mut self) -> AppResult<Instruction> {
         Ok(
             match OPTIONS
                 .get(self.state.selected().ok_or("Selection empty")?)
                 .ok_or("Index out of bounds in Main Menu!")?
             {
-                Options::Reboot => Instruction::Next,
+                Options::Reboot => Instruction::Pop,
                 Options::Music => Instruction::Push(Box::new(PlaylistMenu::new(
                     Config::new().unwrap().load_playlists().collect(),
                 ))),
                 _ => Instruction::Continue,
             },
         )
-    }
-    fn tick(&mut self, service: &mut Services) -> AppResult<crate::machine::Instruction> {
-        Ok(crate::machine::Instruction::Continue)
     }
 
     fn render(

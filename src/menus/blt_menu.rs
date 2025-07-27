@@ -1,5 +1,5 @@
-use bluer::{Session, agent::Agent};
-use bluetui::{app::AppResult, bluetooth::Controller, confirmation::PairingConfirmation};
+// use bluer::{Session, agent::Agent};
+// use bluetui::{app::AppResult, bluetooth::Controller, confirmation::PairingConfirmation};
 /*
 pub struct BltMenu {
     pub session: Arc<Session>,

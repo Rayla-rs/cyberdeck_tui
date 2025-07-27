@@ -2,14 +2,29 @@ use std::{fmt::Display, io::Cursor};
 
 use ratatui::{buffer::Buffer, layout::Rect};
 
-use crate::{AppResult, app::Services, menus::main_menu::MainMenu, menus::menu::Menu};
+use crate::{AppResult, app::AppState, menus::main_menu::MainMenu, menus::menu::Menu};
 
 pub enum Instruction {
     Continue,
     Push(Box<dyn Menu>),
-    DropPush(Box<dyn Menu>),
-    Next,
+    PopPush(Box<dyn Menu>),
+    Pop,
 }
+
+impl Display for Instruction {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(
+            match self {
+                Self::Continue => String::from("continue"),
+                Self::Push(menu) => format!("push({menu})"),
+                Self::PopPush(menu) => format!("pop_push({menu})"),
+                Self::Pop => String::from("pop"),
+            }
+            .as_str(),
+        )
+    }
+}
+
 pub struct Machine {
     stack: Vec<Box<dyn Menu>>,
 }
@@ -52,9 +67,9 @@ impl Machine {
         }
     }
 
-    pub fn tick(&mut self, services: &mut Services) -> AppResult<()> {
+    pub fn tick(&mut self, app_state: &mut AppState) -> AppResult<()> {
         if let Some(menu) = self.stack.last_mut() {
-            let inst = menu.tick(services)?;
+            let inst = menu.tick(app_state)?;
             self.handle_instruction(inst);
         }
         Ok(())
@@ -63,13 +78,13 @@ impl Machine {
     pub fn handle_instruction(&mut self, inst: Instruction) {
         match inst {
             Instruction::Continue => {}
-            Instruction::Next => {
+            Instruction::Pop => {
                 let _ = self.stack.pop();
             }
             Instruction::Push(menu) => {
                 self.stack.push(menu);
             }
-            Instruction::DropPush(menu) => {
+            Instruction::PopPush(menu) => {
                 let _ = self.stack.pop();
                 self.stack.push(menu);
             }

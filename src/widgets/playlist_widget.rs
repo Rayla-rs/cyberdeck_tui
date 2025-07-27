@@ -3,8 +3,8 @@ use ratatui::prelude::*;
 use ratatui::widgets::{Block, Cell, Row, Table, TableState, Widget};
 
 pub struct PlaylistWidget {
-    state: TableState,
-    playlists: Vec<Playlist>,
+    pub state: TableState,
+    pub playlists: Vec<Playlist>,
 }
 
 impl PlaylistWidget {
