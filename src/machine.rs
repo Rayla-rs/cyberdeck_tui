@@ -2,7 +2,14 @@ use std::{fmt::Display, io::Cursor};
 
 use ratatui::{buffer::Buffer, layout::Rect};
 
-use crate::{AppResult, app::AppState, menus::main_menu::MainMenu, menus::menu::Menu};
+use crate::{
+    AppResult,
+    app::AppState,
+    menus::{
+        main_menu::MainMenu,
+        menu::{Menu, NavigationResult},
+    },
+};
 
 pub enum Instruction {
     Continue,
@@ -56,14 +63,20 @@ impl Machine {
         }
         Ok(())
     }
-    pub fn up(&mut self) {
+
+    pub fn up(&mut self) -> NavigationResult {
         if let Some(menu) = self.stack.last_mut() {
-            menu.up();
+            menu.up()
+        } else {
+            NavigationResult::Ok
         }
     }
-    pub fn down(&mut self) {
+
+    pub fn down(&mut self) -> NavigationResult {
         if let Some(menu) = self.stack.last_mut() {
-            menu.down();
+            menu.down()
+        } else {
+            NavigationResult::Ok
         }
     }
 

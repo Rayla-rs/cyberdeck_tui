@@ -5,7 +5,7 @@ use ratatui::{
     widgets::{Block, Borders, List, ListItem, ListState},
 };
 
-use crate::{AppResult, app::AppState, machine::Instruction};
+use crate::{AppResult, app::AppState, machine::Instruction, menus::menu::Menu};
 
 pub trait StateAction: Display {
     fn mutate_state(self, state: &mut AppState);
@@ -31,12 +31,42 @@ impl<'a> Into<ListItem<'a>> for &QuickActions {
     }
 }
 
-pub struct QuickWidget {
+pub struct QuickMenu {
     state: ListState,
     actions: Vec<QuickActions>,
 }
 
-impl QuickWidget {
+impl Display for QuickMenu {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("quick_menu")
+    }
+}
+
+impl Menu for QuickMenu {
+    fn get_state(&mut self) -> &mut dyn crate::menus::menu::MenuState {
+        &mut self.state
+    }
+
+    fn get_len(&self) -> usize {
+        self.actions.len()
+    }
+
+    fn render(&mut self, area: Rect, buf: &mut Buffer) -> AppResult<Rect>
+    where
+        Self: Sized,
+    {
+        let list = List::default()
+            .block(Block::new().borders(Borders::TOP))
+            .items(self.actions.iter())
+            .highlight_symbol(">")
+            .highlight_spacing(ratatui::widgets::HighlightSpacing::Always);
+
+        StatefulWidget::render(list, area, buf, &mut self.state);
+        Ok(area)
+    }
+}
+
+impl QuickMenu {
     pub fn new() -> Self {
         Self {
             state: ListState::default(),
@@ -50,24 +80,5 @@ impl QuickWidget {
         } else {
             self.actions.len() + 1
         }
-    }
-
-    pub fn enter(&mut self) -> AppResult<()> {
-        todo!()
-    }
-}
-
-impl Widget for &mut QuickWidget {
-    fn render(self, area: Rect, buf: &mut Buffer)
-    where
-        Self: Sized,
-    {
-        let list = List::default()
-            .block(Block::new().borders(Borders::TOP))
-            .items(self.actions.iter())
-            .highlight_symbol(">")
-            .highlight_spacing(ratatui::widgets::HighlightSpacing::Always);
-
-        StatefulWidget::render(list, area, buf, &mut self.state);
     }
 }

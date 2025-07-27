@@ -1,9 +1,10 @@
+use crate::menus::menu::{Menu, NavigationResult};
 use crate::{
     audio_player::AudioPlayer,
     config::Config,
     event::{AppEvent, Event, EventHandler},
     machine::Machine,
-    widgets::quick_widget::QuickWidget,
+    menus::quick_menu::QuickMenu,
 };
 use bluetui::app::AppResult;
 use ratatui::{
@@ -26,7 +27,7 @@ pub struct App {
     pub context: String,
     pub services: AppState,
     pub machine: Machine,
-    pub quick_widget: QuickWidget,
+    pub quick_menu: QuickMenu,
     pub focus: Focus,
     /// Is the application running?
     pub running: bool,
@@ -44,7 +45,7 @@ impl App {
                 config: Config::new().expect("AHHHHH!!!"),
             },
             machine: Machine::new(),
-            quick_widget: QuickWidget::new(),
+            quick_menu: QuickMenu::new(),
             focus: Focus::MachineMenu,
             running: true,
             events: EventHandler::new(),
@@ -95,6 +96,8 @@ impl App {
     /// needs to be updated at a fixed frame rate. E.g. polling a server, updating an animation.
     pub fn tick(&mut self) {
         self.machine.tick(&mut self.services);
+
+        // validate cursor location
     }
 
     /// Set running to false to quit the application.
@@ -103,17 +106,43 @@ impl App {
     }
 
     pub fn enter(&mut self) -> AppResult<()> {
-        match self.focus {
-            Focus::MachineMenu => self.machine.enter(),
-            Focus::QuickMenu => self.quick_widget.enter(),
-        }
+        Ok(match self.focus {
+            Focus::MachineMenu => {
+                self.machine.enter()?;
+                //
+            }
+            Focus::QuickMenu => {
+                self.quick_menu.enter()?;
+                //
+            }
+        })
     }
 
     pub fn up(&mut self) {
-        self.machine.up();
+        match self.focus {
+            Focus::MachineMenu => {
+                let _ = self.machine.up();
+            }
+            Focus::QuickMenu => match self.quick_menu.up() {
+                NavigationResult::Underflow => {
+                    let _ = self.machine.up();
+                }
+                _ => {}
+            },
+        }
     }
 
     pub fn down(&mut self) {
-        self.machine.down();
+        match self.focus {
+            Focus::MachineMenu => match self.machine.down() {
+                NavigationResult::Overflow => {
+                    let _ = self.quick_menu.down();
+                }
+                _ => {}
+            },
+            Focus::QuickMenu => {
+                let _ = self.quick_menu.down();
+            }
+        }
     }
 }

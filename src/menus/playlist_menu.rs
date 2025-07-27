@@ -1,16 +1,16 @@
 use std::fmt::Display;
 
-use crate::{
-    machine::Instruction, playlist::Playlist, track_widget::TrackWidget,
-    widgets::playlist_widget::PlaylistWidget,
+use crate::playlist::Playlist;
+
+use super::menu::{Menu, MenuState};
+use ratatui::{
+    prelude::*,
+    widgets::{Cell, Row, Table, TableState},
 };
 
-use super::menu::Menu;
-use ratatui::prelude::*;
-
 pub struct PlaylistMenu {
-    widget: PlaylistWidget,
-    // TODO focus
+    pub state: TableState,
+    pub playlists: Vec<Playlist>,
 }
 
 impl Display for PlaylistMenu {
@@ -20,36 +20,40 @@ impl Display for PlaylistMenu {
 }
 
 impl Menu for PlaylistMenu {
-    fn get_state(&mut self) -> &mut impl super::menu::MenuState {
-        &mut self.widget.state
+    fn get_state(&mut self) -> &mut dyn MenuState {
+        &mut self.state
     }
 
     fn get_len(&self) -> usize {
-        self.widget.playlists.len()
+        self.playlists.len()
     }
 
-    fn enter(&mut self) -> crate::AppResult<Instruction> {
-        // TODO
-        Ok(Instruction::Continue)
-    }
     fn render(&mut self, area: Rect, buf: &mut Buffer) -> crate::AppResult<Rect> {
-        let layout = Layout::default()
-            .direction(Direction::Vertical)
-            .constraints([Constraint::Min(6), Constraint::Length(4)])
-            .split(area);
-
         ratatui::widgets::Clear::default().render(area, buf);
 
-        self.widget.render(layout[0], buf);
+        let header = ["Title", "Tracks", "Duration"]
+            .into_iter()
+            .map(Cell::from)
+            .collect::<Row>()
+            .height(1);
 
+        let table = Table::new(
+            self.playlists.iter(),
+            [Constraint::Min(5), Constraint::Max(2), Constraint::Max(5)],
+        )
+        .header(header)
+        .highlight_symbol(">")
+        .highlight_spacing(ratatui::widgets::HighlightSpacing::Always);
+
+        StatefulWidget::render(table, area, buf, &mut self.state);
         Ok(area)
     }
 }
 
 impl PlaylistMenu {
     pub fn new(playlists: Vec<Playlist>) -> Self {
-        Self {
-            widget: PlaylistWidget::new(playlists),
-        }
+        let mut state = TableState::new();
+        state.select_next();
+        Self { state, playlists }
     }
 }

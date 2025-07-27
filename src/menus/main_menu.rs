@@ -55,7 +55,7 @@ impl Display for MainMenu {
 }
 
 impl Menu for MainMenu {
-    fn get_state(&mut self) -> &mut impl MenuState {
+    fn get_state(&mut self) -> &mut dyn MenuState {
         &mut self.state
     }
 

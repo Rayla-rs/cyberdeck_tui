@@ -41,7 +41,7 @@ impl Widget for &mut App {
             .render(layout[1].inner(Margin::default()), buf);
 
         // Render menus
-        let quick_widget_height = self.quick_widget.get_height().try_into().unwrap();
+        let quick_widget_height = self.quick_menu.get_height().try_into().unwrap();
         if quick_widget_height > 0 {
             let menu_layout = Layout::new(
                 Direction::Vertical,
@@ -53,7 +53,7 @@ impl Widget for &mut App {
                 .render(menu_layout[0], buf)
                 .expect("Render Error: ");
 
-            self.quick_widget.render(menu_layout[1], buf);
+            self.quick_menu.render(menu_layout[1], buf);
         } else {
             self.machine.render(layout[0], buf).expect("Render Error: ");
         }

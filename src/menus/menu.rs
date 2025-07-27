@@ -15,7 +15,8 @@ pub enum NavigationResult {
 }
 
 pub trait Menu: Display {
-    fn get_state(&mut self) -> &mut impl MenuState;
+    fn get_state(&mut self) -> &mut dyn MenuState;
+
     fn get_len(&self) -> usize;
 
     fn up(&mut self) -> NavigationResult {

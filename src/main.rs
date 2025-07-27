@@ -12,7 +12,6 @@ mod playlist;
 mod track;
 mod track_widget;
 pub mod ui;
-pub mod widgets;
 
 pub type Error = Box<dyn std::error::Error>;
 pub type AppResult<T> = std::result::Result<T, Error>;
