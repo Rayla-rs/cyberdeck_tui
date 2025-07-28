@@ -14,6 +14,13 @@ pub struct Track {
     decoder: Decoder<BufReader<File>>,
 }
 
+impl Clone for Track {
+    fn clone(&self) -> Self {
+        // Expect it to work because &self exists
+        Self::try_from(self.path.clone()).unwrap()
+    }
+}
+
 impl TryFrom<PathBuf> for Track {
     type Error = crate::Error;
     fn try_from(value: PathBuf) -> Result<Self, Self::Error> {

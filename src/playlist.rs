@@ -8,6 +8,7 @@ use serde::Deserialize;
 
 use crate::track::Track;
 
+#[derive(Clone)]
 pub struct Playlist {
     pub title: String,
     pub tracks: Vec<Track>,
