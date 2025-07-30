@@ -9,10 +9,7 @@ use crate::{
     AppResult, app_actions::AppAction, config::Config, machine::Instruction, menus::menu::Menu,
 };
 
-use super::{
-    menu::{MenuState, NavigationResult},
-    playlist_menu::PlaylistMenu,
-};
+use super::{menu::MenuState, playlist_collection_menu::PlaylistCollectionMenu};
 
 enum Options {
     Music,
@@ -71,7 +68,7 @@ impl Menu for MainMenu {
             .ok_or("Index out of bounds in Main Menu!")?
         {
             Options::Reboot => Instruction::Pop,
-            Options::Music => Instruction::Push(Box::new(PlaylistMenu::new(
+            Options::Music => Instruction::Push(Box::new(PlaylistCollectionMenu::new(
                 Config::new().unwrap().load_playlists().collect(),
             ))),
             _ => Instruction::Continue,
