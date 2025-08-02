@@ -3,6 +3,7 @@ use std::fmt::Display;
 use crate::app_actions::AppAction;
 use crate::machine::Instruction;
 use crate::menus::menu::{Menu, NavigationResult};
+use crate::trace_dbg;
 use crate::{
     audio_player::AudioPlayer,
     config::Config,
@@ -16,6 +17,7 @@ use ratatui::{
     DefaultTerminal,
     crossterm::event::{KeyCode, KeyEvent, KeyModifiers},
 };
+use tracing::{Level, event, trace};
 
 #[derive(PartialEq, Eq)]
 pub enum Focus {
@@ -31,7 +33,7 @@ pub struct AppState {
 /// Application.
 pub struct App {
     pub context: String,
-    pub services: AppState,
+    pub state: AppState,
     pub machine: Machine,
     pub quick_menu: QuickMenu,
     pub focus: Focus,
@@ -46,7 +48,7 @@ impl App {
     pub fn new() -> Self {
         Self {
             context: format!("{}@{}", whoami::username(), whoami::devicename()),
-            services: AppState {
+            state: AppState {
                 player: AudioPlayer::new(),
                 config: Config::new().expect("AHHHHH!!!"),
             },
@@ -114,7 +116,7 @@ impl App {
     /// The tick event is where you can update the state of your application with any logic that
     /// needs to be updated at a fixed frame rate. E.g. polling a server, updating an animation.
     pub fn tick(&mut self) {
-        self.machine.tick(&mut self.services).ok().unwrap();
+        self.machine.tick(&mut self.state).ok().unwrap();
 
         // validate cursor location
     }
@@ -159,10 +161,13 @@ impl App {
     }
 
     fn handel_action(&mut self, action: AppAction) -> AppResult<()> {
+        // Trace
+        trace!(?action);
+
         match action {
             AppAction::MachineAction(instruction) => self.machine.handle_instruction(instruction),
             AppAction::StateAction(mutator) => {
-                todo!()
+                mutator.mutate_state(&mut self.state);
             }
         }
         Ok(())

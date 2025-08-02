@@ -1,47 +1,32 @@
-use std::fmt::Display;
+use std::{fmt::Display, fs, io::BufRead, ops::Deref, path::PathBuf};
 
-use crate::{machine::Instruction, playlist::Playlist};
+use crate::{logging, machine::Instruction};
 
 use super::menu::{Menu, MenuState};
 use ratatui::{
     prelude::*,
-    widgets::{Cell, HighlightSpacing, List, ListItem, ListState, Row, Table, TableState},
+    widgets::{HighlightSpacing, List, ListState},
 };
-use strum::{EnumCount, IntoEnumIterator};
-use strum_macros::{Display, EnumCount, EnumIter, VariantArray};
-
-#[derive(Display, EnumIter, VariantArray, EnumCount)]
-enum PlaylistOptions {
-    Play,
-}
-
-impl<'a> Into<ListItem<'a>> for PlaylistOptions {
-    fn into(self) -> ListItem<'a> {
-        ListItem::from(format!("{}", self))
-    }
-}
-
-const OPTIONS: [PlaylistOptions; 1] = [PlaylistOptions::Play];
 
 #[derive(Debug)]
-pub struct PlaylistMenu {
+pub struct LogMenu {
     state: ListState,
-    playlist: Playlist,
+    lines: Vec<String>,
 }
 
-impl Display for PlaylistMenu {
+impl Display for LogMenu {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(self.playlist.title.as_str())
+        f.write_str("...")
     }
 }
 
-impl Menu for PlaylistMenu {
+impl Menu for LogMenu {
     fn get_state(&mut self) -> &mut dyn MenuState {
         &mut self.state
     }
 
     fn get_len(&self) -> usize {
-        PlaylistOptions::COUNT
+        self.lines.len()
     }
 
     fn get_quick_actions(&self) -> Vec<crate::app_actions::AppAction> {
@@ -56,7 +41,7 @@ impl Menu for PlaylistMenu {
         // paragraph of data
 
         // List of actions
-        let list = List::new(PlaylistOptions::iter())
+        let list = List::new(self.lines.clone())
             .highlight_symbol(">")
             .highlight_spacing(if focused {
                 HighlightSpacing::Always
@@ -70,10 +55,13 @@ impl Menu for PlaylistMenu {
     }
 }
 
-impl PlaylistMenu {
-    pub fn new(playlist: Playlist) -> Self {
+impl LogMenu {
+    pub fn new() -> Self {
         let mut state = ListState::default();
         state.select_first();
-        Self { state, playlist }
+        Self {
+            state,
+            lines: logging::read_all_lines(),
+        }
     }
 }

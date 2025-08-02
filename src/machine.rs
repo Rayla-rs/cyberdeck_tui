@@ -8,6 +8,7 @@ use crate::{
     menus::{main_menu::MainMenu, menu::Menu},
 };
 
+#[derive(Debug)]
 pub enum Instruction {
     Continue,
     Push(Box<dyn Menu>),

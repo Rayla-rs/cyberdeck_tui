@@ -2,12 +2,16 @@ use std::fmt::Display;
 
 use crate::{machine::Instruction, playlist::Playlist};
 
-use super::menu::{Menu, MenuState};
+use super::{
+    menu::{Menu, MenuState},
+    playlist_menu::PlaylistMenu,
+};
 use ratatui::{
     prelude::*,
     widgets::{Cell, HighlightSpacing, Row, Table, TableState},
 };
 
+#[derive(Debug)]
 pub struct PlaylistCollectionMenu {
     pub state: TableState,
     pub playlists: Vec<Playlist>,
@@ -29,7 +33,17 @@ impl Menu for PlaylistCollectionMenu {
     }
 
     fn get_quick_actions(&self) -> Vec<crate::app_actions::AppAction> {
-        vec![Instruction::Pop.into(), Instruction::Continue.into()]
+        vec![Instruction::Pop.into()]
+    }
+
+    fn enter(&mut self) -> crate::AppResult<crate::app_actions::AppAction> {
+        Ok(Instruction::Push(Box::new(PlaylistMenu::new(
+            self.playlists
+                .get(self.state.selected().unwrap())
+                .unwrap()
+                .clone(),
+        )))
+        .into())
     }
 
     fn render(&mut self, area: Rect, buf: &mut Buffer, focused: bool) -> crate::AppResult<Rect> {

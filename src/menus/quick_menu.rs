@@ -8,6 +8,7 @@ use ratatui::{
 
 use crate::{AppResult, app_actions::AppAction, machine::Instruction, menus::menu::Menu};
 
+#[derive(Debug)]
 pub struct QuickMenu {
     pub actions: Vec<AppAction>,
     pub state: ListState,

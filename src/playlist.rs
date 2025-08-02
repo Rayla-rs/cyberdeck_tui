@@ -1,18 +1,25 @@
-use std::path::PathBuf;
+use std::{fmt::Display, path::PathBuf, time::Duration};
 
+use hhmmss::Hhmmss;
 use ratatui::{
     text::Text,
     widgets::{Cell, Row},
 };
 use serde::Deserialize;
 
-use crate::track::Track;
+use crate::{trace_dbg, track::Track};
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct Playlist {
     pub title: String,
     pub tracks: Vec<Track>,
     pub path: PathBuf,
+}
+
+impl Display for Playlist {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_fmt(format_args!("{}", self.title))
+    }
 }
 
 impl Playlist {
@@ -20,8 +27,17 @@ impl Playlist {
         [
             self.title.clone(),
             self.tracks.len().to_string(),
-            String::from("DURATION"),
+            self.get_duration().hhmmss(),
         ]
+    }
+
+    pub fn get_duration(&self) -> Duration {
+        self.tracks
+            .iter()
+            .fold(Duration::default(), |acc, elem| {
+                acc + elem.total_duration().unwrap_or_default()
+            })
+            .into()
     }
 }
 
@@ -52,8 +68,16 @@ impl TryFrom<PlyData> for Playlist {
                 .filter_map(|track| {
                     let mut path = value.path.clone();
                     let _ = path.pop();
-                    path.push(format!("\\{track}"));
-                    Track::try_from(path).ok()
+                    // path.push(format!("\\{track}"));
+                    path.push(PathBuf::from(track)); // Bug here fix me pls master :3
+                    trace_dbg!(path.clone());
+                    match Track::try_from(path) {
+                        Ok(track) => Some(track),
+                        Err(err) => {
+                            trace_dbg!(err);
+                            None
+                        }
+                    }
                 })
                 .collect::<Vec<_>>(),
             path: value.path,

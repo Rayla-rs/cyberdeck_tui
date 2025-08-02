@@ -4,30 +4,20 @@ use ratatui::{
     style::Stylize,
     widgets::{HighlightSpacing, List, ListItem, ListState, StatefulWidget},
 };
+use strum::{EnumCount, IntoEnumIterator, VariantArray};
+use strum_macros::{Display, EnumCount, EnumIter, VariantArray};
 
-use crate::{
-    AppResult, app_actions::AppAction, config::Config, machine::Instruction, menus::menu::Menu,
-};
+use crate::{AppResult, CONFIG, app_actions::AppAction, machine::Instruction, menus::menu::Menu};
 
-use super::{menu::MenuState, playlist_collection_menu::PlaylistCollectionMenu};
+use super::{log_menu::LogMenu, menu::MenuState, playlist_collection_menu::PlaylistCollectionMenu};
 
+#[derive(Display, EnumIter, VariantArray, EnumCount)]
 enum Options {
     Music,
     Wifi,
     Bluetooth,
+    Log,
     Reboot,
-}
-// Add menu to look at launch errs
-
-impl Display for Options {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(match self {
-            Self::Music => "Music",
-            Self::Wifi => "Wifi",
-            Self::Bluetooth => "Bluetooth",
-            Self::Reboot => "Reboot",
-        })
-    }
 }
 
 impl<'a> Into<ListItem<'a>> for Options {
@@ -36,13 +26,7 @@ impl<'a> Into<ListItem<'a>> for Options {
     }
 }
 
-const OPTIONS: [Options; 4] = [
-    Options::Music,
-    Options::Wifi,
-    Options::Bluetooth,
-    Options::Reboot,
-];
-
+#[derive(Debug)]
 pub struct MainMenu {
     state: ListState,
 }
@@ -59,18 +43,19 @@ impl Menu for MainMenu {
     }
 
     fn get_len(&self) -> usize {
-        OPTIONS.len()
+        Options::COUNT
     }
 
     fn enter(&mut self) -> AppResult<AppAction> {
-        Ok(match OPTIONS
+        Ok(match Options::VARIANTS
             .get(self.state.selected().ok_or("Selection empty")?)
             .ok_or("Index out of bounds in Main Menu!")?
         {
             Options::Reboot => Instruction::Pop,
             Options::Music => Instruction::Push(Box::new(PlaylistCollectionMenu::new(
-                Config::new().unwrap().load_playlists().collect(),
+                CONFIG.load_playlists().collect(),
             ))),
+            Options::Log => Instruction::Push(Box::new(LogMenu::new())),
             _ => Instruction::Continue,
         }
         .into())
@@ -82,7 +67,7 @@ impl Menu for MainMenu {
         buf: &mut ratatui::prelude::Buffer,
         focused: bool,
     ) -> AppResult<ratatui::prelude::Rect> {
-        let list = List::new(OPTIONS)
+        let list = List::new(Options::iter())
             .highlight_symbol(">")
             .highlight_spacing(if focused {
                 HighlightSpacing::Always

@@ -1,4 +1,4 @@
-use std::fmt::Display;
+use std::fmt::{Debug, Display};
 
 use ratatui::{
     buffer::Buffer,
@@ -14,7 +14,7 @@ pub enum NavigationResult {
     Next,
 }
 
-pub trait Menu: Display {
+pub trait Menu: Debug + Display {
     fn get_state(&mut self) -> &mut dyn MenuState;
 
     fn get_len(&self) -> usize;

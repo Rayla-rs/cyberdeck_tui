@@ -2,7 +2,7 @@ use std::{fs::File, time::Duration};
 
 use rodio::{Decoder, OutputStream, Sink, Source, source::SineWave};
 
-use crate::{AppResult, track::Track};
+use crate::{AppResult, playlist::Playlist, track::Track};
 use tokio::sync::mpsc;
 
 enum Event {
@@ -59,7 +59,10 @@ impl AudioPlayer {
     }
 
     pub fn stuff(&self) {}
-
+    pub fn play_playlist(&mut self, playlist: Playlist) {
+        // Takes ownership of playlist :D
+        todo!()
+    }
     // TODO tick
     //
     //
