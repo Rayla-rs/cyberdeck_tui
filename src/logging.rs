@@ -2,10 +2,9 @@
 
 use std::{io::BufRead, path::PathBuf};
 
-use color_eyre::eyre::{Context, Result};
+use color_eyre::eyre::Result;
 use directories::ProjectDirs;
 use lazy_static::lazy_static;
-use tracing::error;
 use tracing_error::ErrorLayer;
 use tracing_subscriber::{self, Layer, layer::SubscriberExt, util::SubscriberInitExt};
 
@@ -51,7 +50,7 @@ pub fn initialize_logging() -> Result<()> {
         .with_file(false)
         .without_time()
         .with_line_number(false)
-        .with_target(false)
+        .with_target(true)
         .with_writer(log_file)
         .with_target(false)
         .with_ansi(false)

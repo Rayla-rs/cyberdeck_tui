@@ -57,7 +57,11 @@ impl Menu for PlaylistCollectionMenu {
 
         let table = Table::new(
             self.playlists.iter(),
-            [Constraint::Min(5), Constraint::Max(2), Constraint::Max(5)],
+            [
+                Constraint::Min(5),
+                Constraint::Length(6),
+                Constraint::Max(8),
+            ],
         )
         .header(header)
         .highlight_symbol(">")

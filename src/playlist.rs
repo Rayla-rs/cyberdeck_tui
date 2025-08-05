@@ -70,7 +70,6 @@ impl TryFrom<PlyData> for Playlist {
                     let _ = path.pop();
                     // path.push(format!("\\{track}"));
                     path.push(PathBuf::from(track)); // Bug here fix me pls master :3
-                    trace_dbg!(path.clone());
                     match Track::try_from(path) {
                         Ok(track) => Some(track),
                         Err(err) => {

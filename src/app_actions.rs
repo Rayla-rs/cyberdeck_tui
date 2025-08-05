@@ -19,9 +19,31 @@ impl Display for PlayPlaylist {
     }
 }
 
-impl StateAction for Box<PlayPlaylist> {
+impl StateAction for PlayPlaylist {
     fn mutate_state(self: Box<Self>, state: &mut AppState) {
-        state.player.play_playlist(self.playlist);
+        state.player.queue_playlist(self.playlist);
+        state.player.play();
+    }
+}
+
+impl PlayPlaylist {
+    pub fn new(playlist: Playlist) -> Self {
+        Self { playlist }
+    }
+}
+
+#[derive(Debug)]
+pub struct ClearLog;
+
+impl Display for ClearLog {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("ClearLog")
+    }
+}
+
+impl StateAction for ClearLog {
+    fn mutate_state(self: Box<Self>, _state: &mut AppState) {
+        todo!()
     }
 }
 

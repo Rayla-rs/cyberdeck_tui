@@ -1,6 +1,7 @@
 use std::fmt::Display;
 
 use crate::app_actions::AppAction;
+use crate::blt_client::BltClient;
 use crate::machine::Instruction;
 use crate::menus::menu::{Menu, NavigationResult};
 use crate::trace_dbg;
@@ -11,6 +12,7 @@ use crate::{
     machine::Machine,
     menus::quick_menu::QuickMenu,
 };
+use bluer::Session;
 use bluetui::app::AppResult;
 use ratatui::widgets::ListItem;
 use ratatui::{
@@ -27,7 +29,8 @@ pub enum Focus {
 
 pub struct AppState {
     pub player: AudioPlayer,
-    pub config: Config,
+    pub config: Config, //blt session
+    pub blt_client: BltClient,
 }
 
 /// Application.
@@ -45,19 +48,22 @@ pub struct App {
 
 impl App {
     /// Constructs a new instance of [`App`].
-    pub fn new() -> Self {
-        Self {
+    pub async fn new() -> AppResult<Self> {
+        let blt_client = BltClient::new().await?;
+        blt_client.test().await;
+        Ok(Self {
             context: format!("{}@{}", whoami::username(), whoami::devicename()),
             state: AppState {
                 player: AudioPlayer::new(),
-                config: Config::new().expect("AHHHHH!!!"),
+                config: Config::new()?,
+                blt_client,
             },
             machine: Machine::new(),
             quick_menu: QuickMenu::new(),
             focus: Focus::MachineMenu,
             running: true,
             events: EventHandler::new(),
-        }
+        })
     }
 
     /// Run the application's main loop.
@@ -75,6 +81,8 @@ impl App {
             if self.quick_menu.state.selected().is_none() {
                 self.quick_menu.state.select_first();
             }
+
+            self.state.player.tick();
 
             terminal.draw(|frame| frame.render_widget(&mut self, frame.area()))?;
             match self.events.next().await? {

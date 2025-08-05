@@ -1,4 +1,10 @@
-use std::{fmt::Display, fs, io::BufRead, ops::Deref, path::PathBuf};
+use std::{
+    fmt::{Debug, Display},
+    fs,
+    io::BufRead,
+    ops::Deref,
+    path::PathBuf,
+};
 
 use crate::{logging, machine::Instruction};
 
@@ -8,15 +14,20 @@ use ratatui::{
     widgets::{HighlightSpacing, List, ListState},
 };
 
-#[derive(Debug)]
 pub struct LogMenu {
     state: ListState,
     lines: Vec<String>,
 }
 
+impl Debug for LogMenu {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("log_menu")
+    }
+}
+
 impl Display for LogMenu {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str("...")
+        f.write_str("log")
     }
 }
 

@@ -1,33 +1,47 @@
-// use bluer::{Session, agent::Agent};
-// use bluetui::{app::AppResult, bluetooth::Controller, confirmation::PairingConfirmation};
-/*
+use std::fmt::Display;
+
+use ratatui::buffer::Buffer;
+use ratatui::layout::Rect;
+use ratatui::widgets::{ListState, Widget};
+
+use crate::machine::Instruction;
+
+use super::menu::{Menu, MenuState};
+
+#[derive(Debug)]
 pub struct BltMenu {
-    pub session: Arc<Session>,
-    pub agent: Agent,
-    pub controllers: Vec<Controller>,
+    state: ListState,
+}
+
+impl Display for BltMenu {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("blt_menu")
+    }
+}
+
+impl Menu for BltMenu {
+    fn get_state(&mut self) -> &mut dyn MenuState {
+        &mut self.state
+    }
+
+    fn get_len(&self) -> usize {
+        1
+    }
+
+    fn get_quick_actions(&self) -> Vec<crate::app_actions::AppAction> {
+        vec![Instruction::Pop.into()]
+    }
+
+    fn render(&mut self, area: Rect, buf: &mut Buffer, focused: bool) -> crate::AppResult<Rect> {
+        ratatui::widgets::Clear::default().render(area, buf);
+        Ok(area)
+    }
 }
 
 impl BltMenu {
-    pub async fn new() -> AppResult<Self> {
-        let sesssion = Arc::new(bluer::Session::new().await?);
-
-        let pairing_confimation = PairingConfirmation::new();
-
-        let agent = Agent {
-            request_default: false,
-            request_confirmation: Some(Box::new(move |req| {
-                request_confirmation(
-                    req,
-                    confirmation_display.clone(),
-                    user_confirmation_receiver.clone(),
-                    confirmation_message_sender.clone(),
-                )
-                .boxed()
-            })),
-            ..Default::default()
-        };
-
-        panic!()
+    pub fn new() -> Self {
+        let mut state = ListState::default();
+        state.select_first();
+        Self { state }
     }
 }
-*/

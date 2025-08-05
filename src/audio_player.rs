@@ -1,47 +1,27 @@
-use std::{fs::File, time::Duration};
+use std::fmt::Debug;
 
+use chrono::Duration;
+use hhmmss::Hhmmss;
 use rodio::{Decoder, OutputStream, Sink, Source, source::SineWave};
+use tracing::{Level, Span, info, instrument, span, trace};
 
 use crate::{AppResult, playlist::Playlist, track::Track};
-use tokio::sync::mpsc;
-
-enum Event {
-    Action(AudioAction),
-}
-
-enum AudioAction {
-    Play,
-    Pause,
-    Next,
-    Previouse,
-    PushBack(Track),
-    PushFront(Track),
-}
-
-struct AudioEventHandler {
-    /// Event sender channel.
-    sender: mpsc::UnboundedSender<Event>,
-    /// Event receiver channel.
-    receiver: mpsc::UnboundedReceiver<Event>,
-}
-impl AudioEventHandler {
-    /// Constructs a new instance of [`EventHandler`] and spawns a new thread to handle events.
-    pub fn new() -> Self {
-        let (sender, receiver) = mpsc::unbounded_channel();
-        // let actor = EventTask::new(sender.clone());
-        // tokio::spawn(async { actor.run().await });
-        Self { sender, receiver }
-    }
-}
 
 pub struct AudioPlayer {
     stream_handle: OutputStream,
     sink: Sink,
-    // History
-    // Future (queue)
     current: Option<Track>,
     queue: Vec<Track>,
     history: Vec<Track>,
+}
+
+impl Debug for AudioPlayer {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_fmt(format_args!(
+            "AudioPlayer{{current: {:?}, queue: {:?}, history: {:?}}}",
+            self.current, self.queue, self.history
+        ))
+    }
 }
 
 impl AudioPlayer {
@@ -58,19 +38,57 @@ impl AudioPlayer {
         }
     }
 
-    pub fn stuff(&self) {}
-    pub fn play_playlist(&mut self, playlist: Playlist) {
-        // Takes ownership of playlist :D
-        todo!()
+    pub fn queue_playlist(&mut self, playlist: Playlist) {
+        let span = span!(Level::TRACE, "queue playlist");
+        let guard = span.enter();
+
+        for track in playlist.tracks.into_iter().rev() {
+            self.push_track(track);
+        }
+
+        drop(guard);
     }
-    // TODO tick
-    //
-    //
-    pub fn enqueue(&mut self, track: File) -> AppResult<()> {
-        let decoder = Decoder::try_from(track)?;
-        self.sink.append(decoder);
-        // self.sink.append(EmptyCallback::new(Box::new(|| {})));
-        Ok(())
+
+    pub fn tick(&mut self) {
+        // change so that we move current
+        if !self.sink.is_paused() {
+            match self.current.as_ref() {
+                Some(current) => {
+                    if self.sink.empty() && self.has_next() {
+                        self.history.push(current.clone());
+                        self.play();
+                    }
+                }
+                None => {
+                    self.play();
+                }
+            }
+        }
+    }
+
+    pub fn play(&mut self) {
+        self.next();
+        self.sink.play();
+    }
+
+    fn has_next(&self) -> bool {
+        !self.queue.is_empty()
+    }
+
+    fn next(&mut self) {
+        self.current = self.queue.pop();
+        self.sink.clear();
+        // Eww clone pls fix someday pls
+        if let Some(track) = self.current.clone() {
+            trace!("play_next");
+            self.sink.append(track.decoder);
+        }
+    }
+
+    #[instrument]
+    pub fn push_track(&mut self, track: Track) {
+        trace!("pushed track {}", track);
+        self.queue.push(track);
     }
 
     pub fn pause(&mut self) {
@@ -90,11 +108,39 @@ impl AudioPlayer {
         // seek beginning
     }
 
-    pub fn test(&mut self) {
-        self.sink.append(
-            SineWave::new(440.0)
-                .take_duration(Duration::from_secs_f32(0.25))
-                .amplify(0.20),
-        );
+    pub fn get_progress(&self) -> f64 {
+        match self.current.as_ref() {
+            Some(current) => match current.total_duration() {
+                Some(total_duration) => self
+                    .sink
+                    .get_pos()
+                    .div_duration_f64(total_duration)
+                    .clamp(0.0, 1.0),
+                None => 0.0,
+            },
+            None => 0.0,
+        }
+    }
+
+    pub fn get_progress_label(&self) -> String {
+        format!(
+            "{}|{}",
+            self.sink.get_pos().hhmmss(),
+            match self.current.as_ref() {
+                Some(current) => {
+                    match current.total_duration() {
+                        Some(total_duration) => total_duration.hhmmss(),
+                        None => String::from("NAN"),
+                    }
+                }
+                None => String::from("NAN"),
+            }
+        )
+    }
+}
+
+impl<'a> AudioPlayer {
+    pub fn get_current(&'a self) -> Option<&'a Track> {
+        self.current.as_ref()
     }
 }

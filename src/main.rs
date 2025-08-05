@@ -6,6 +6,7 @@ use crate::app::App;
 pub mod app;
 pub mod app_actions;
 mod audio_player;
+pub mod blt_client;
 pub mod config;
 pub mod event;
 pub mod logging;
@@ -29,7 +30,7 @@ async fn main() -> AppResult<()> {
     logging::initialize_logging()?;
     trace_dbg!("Logging Initialized");
     let terminal = ratatui::init();
-    let result = App::new().run(terminal).await;
+    let result = App::new().await?.run(terminal).await;
     ratatui::restore();
     result
 }

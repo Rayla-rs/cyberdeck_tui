@@ -3,7 +3,7 @@ use hhmmss::Hhmmss;
 use rodio::{Decoder, Source};
 
 use std::{
-    fmt::Debug,
+    fmt::{Debug, Display},
     fs::{File, OpenOptions},
     io::BufReader,
     path::PathBuf,
@@ -15,7 +15,7 @@ use crate::trace_dbg;
 pub struct Track {
     path: PathBuf,
     tags: Box<dyn AudioTag>, // Refactor to make less err prone
-    decoder: Decoder<BufReader<File>>,
+    pub decoder: Decoder<BufReader<File>>,
 }
 
 impl Debug for Track {
@@ -42,6 +42,16 @@ impl TryFrom<PathBuf> for Track {
     }
 }
 
+impl Display for Track {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_fmt(format_args!(
+            "Track(Title: {}, Path: {})",
+            self.tags.title().unwrap_or("???"),
+            self.path.to_string_lossy()
+        ))
+    }
+}
+
 impl Track {
     pub fn total_duration(&self) -> Option<Duration> {
         self.decoder.total_duration()
@@ -54,5 +64,9 @@ impl Track {
             self.tags.artist().unwrap_or_default().to_string(),
             Duration::from_secs(self.tags.duration().unwrap_or_default() as u64).hhmmss(),
         ]
+    }
+
+    pub fn title(&self) -> String {
+        self.tags.title().unwrap_or_default().to_string()
     }
 }

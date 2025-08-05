@@ -1,11 +1,15 @@
 use std::fmt::Display;
 
-use crate::{machine::Instruction, playlist::Playlist};
+use crate::{
+    app_actions::{AppAction, PlayPlaylist},
+    machine::Instruction,
+    playlist::Playlist,
+};
 
 use super::menu::{Menu, MenuState};
 use ratatui::{
     prelude::*,
-    widgets::{Cell, HighlightSpacing, List, ListItem, ListState, Row, Table, TableState},
+    widgets::{Block, HighlightSpacing, List, ListItem, ListState},
 };
 use strum::{EnumCount, IntoEnumIterator};
 use strum_macros::{Display, EnumCount, EnumIter, VariantArray};
@@ -20,8 +24,6 @@ impl<'a> Into<ListItem<'a>> for PlaylistOptions {
         ListItem::from(format!("{}", self))
     }
 }
-
-const OPTIONS: [PlaylistOptions; 1] = [PlaylistOptions::Play];
 
 #[derive(Debug)]
 pub struct PlaylistMenu {
@@ -48,14 +50,28 @@ impl Menu for PlaylistMenu {
         vec![Instruction::Pop.into()]
     }
 
+    fn enter(&mut self) -> crate::AppResult<crate::app_actions::AppAction> {
+        Ok(AppAction::StateAction(Box::new(PlayPlaylist::new(
+            self.playlist.clone(),
+        ))))
+    }
+
     fn render(&mut self, area: Rect, buf: &mut Buffer, focused: bool) -> crate::AppResult<Rect> {
+        let area = area.inner(Margin {
+            horizontal: 2,
+            vertical: 2,
+        });
+
         ratatui::widgets::Clear::default().render(area, buf);
+
+        // todo -> make smaller hehe
 
         // Layout::new(direction, constraints)
 
         // paragraph of data
 
         // List of actions
+
         let list = List::new(PlaylistOptions::iter())
             .highlight_symbol(">")
             .highlight_spacing(if focused {
@@ -63,7 +79,8 @@ impl Menu for PlaylistMenu {
             } else {
                 HighlightSpacing::Never
             })
-            .yellow();
+            .yellow()
+            .block(Block::bordered());
         StatefulWidget::render(list, area.clone(), buf, &mut self.state);
 
         Ok(area)

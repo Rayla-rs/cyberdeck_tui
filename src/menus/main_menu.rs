@@ -9,7 +9,10 @@ use strum_macros::{Display, EnumCount, EnumIter, VariantArray};
 
 use crate::{AppResult, CONFIG, app_actions::AppAction, machine::Instruction, menus::menu::Menu};
 
-use super::{log_menu::LogMenu, menu::MenuState, playlist_collection_menu::PlaylistCollectionMenu};
+use super::{
+    blt_menu::BltMenu, log_menu::LogMenu, menu::MenuState,
+    playlist_collection_menu::PlaylistCollectionMenu,
+};
 
 #[derive(Display, EnumIter, VariantArray, EnumCount)]
 enum Options {
@@ -55,6 +58,7 @@ impl Menu for MainMenu {
             Options::Music => Instruction::Push(Box::new(PlaylistCollectionMenu::new(
                 CONFIG.load_playlists().collect(),
             ))),
+            Options::Bluetooth => Instruction::Push(Box::new(BltMenu::new())),
             Options::Log => Instruction::Push(Box::new(LogMenu::new())),
             _ => Instruction::Continue,
         }
