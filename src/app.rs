@@ -1,7 +1,9 @@
+use std::collections::{HashMap, HashSet};
 use std::fmt::Display;
 
-use crate::app_actions::AppAction;
-use crate::blt_client::BltClient;
+use crate::app_actions::{AppAction, AppOnce};
+use crate::blt_client::{BltClient, Device};
+use crate::event::BltEvent;
 use crate::machine::Instruction;
 use crate::menus::menu::{Menu, NavigationResult};
 use crate::trace_dbg;
@@ -12,7 +14,7 @@ use crate::{
     machine::Machine,
     menus::quick_menu::QuickMenu,
 };
-use bluer::Session;
+use bluer::{Address, Session};
 use bluetui::app::AppResult;
 use ratatui::widgets::ListItem;
 use ratatui::{
@@ -31,6 +33,7 @@ pub struct AppState {
     pub player: AudioPlayer,
     pub config: Config, //blt session
     pub blt_client: BltClient,
+    pub devices: HashMap<Address, Device>,
 }
 
 /// Application.
@@ -49,14 +52,13 @@ pub struct App {
 impl App {
     /// Constructs a new instance of [`App`].
     pub async fn new() -> AppResult<Self> {
-        let blt_client = BltClient::new().await?;
-        blt_client.test().await;
         Ok(Self {
             context: format!("{}@{}", whoami::username(), whoami::devicename()),
             state: AppState {
                 player: AudioPlayer::new(),
                 config: Config::new()?,
-                blt_client,
+                blt_client: BltClient::new().await?,
+                devices: HashMap::default(),
             },
             machine: Machine::new(),
             quick_menu: QuickMenu::new(),
@@ -86,7 +88,7 @@ impl App {
 
             terminal.draw(|frame| frame.render_widget(&mut self, frame.area()))?;
             match self.events.next().await? {
-                Event::Tick => self.tick(),
+                Event::Tick => self.tick(), // change to async
                 Event::Crossterm(event) => match event {
                     crossterm::event::Event::Key(key_event) => self.handle_key_events(key_event)?,
                     _ => {}
@@ -98,6 +100,12 @@ impl App {
                         self.enter()?;
                     }
                     AppEvent::Quit => self.quit(),
+                },
+                Event::Blt(device_event) => match device_event {
+                    BltEvent::Add(dev) => {
+                        self.add_device(dev);
+                    }
+                    BltEvent::Remove(addr) => self.remove_device(addr),
                 },
             }
         }
@@ -177,7 +185,16 @@ impl App {
             AppAction::StateAction(mutator) => {
                 mutator.mutate_state(&mut self.state);
             }
+            AppAction::Once(once) => once.once(),
         }
         Ok(())
+    }
+
+    fn add_device(&mut self, device: Device) {
+        self.state.devices.insert(device.address, device);
+    }
+
+    fn remove_device(&mut self, address: Address) {
+        self.state.devices.remove(&address);
     }
 }

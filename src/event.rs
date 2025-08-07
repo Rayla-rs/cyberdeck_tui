@@ -1,8 +1,12 @@
+use bluer::{AdapterEvent, Address, DiscoveryFilter, Session};
 use color_eyre::eyre::OptionExt;
-use futures::{FutureExt, StreamExt};
+use futures::{FutureExt, StreamExt, pin_mut};
 use ratatui::crossterm::event::Event as CrosstermEvent;
 use std::time::Duration;
 use tokio::sync::mpsc;
+use tracing::trace;
+
+use crate::blt_client::Device;
 
 /// The frequency at which tick events are emitted.
 const TICK_FPS: f64 = 30.0;
@@ -24,6 +28,7 @@ pub enum Event {
     ///
     /// Use this event to emit custom events that are specific to your application.
     App(AppEvent),
+    Blt(BltEvent),
 }
 
 /// Application events.
@@ -37,6 +42,14 @@ pub enum AppEvent {
     Enter,
     /// Quit the application.
     Quit,
+    // TODO
+    // BLT EVENTS
+}
+
+#[derive(Clone, Debug)]
+pub enum BltEvent {
+    Add(Device),
+    Remove(Address),
 }
 
 /// Terminal event handler.
@@ -100,6 +113,21 @@ impl EventTask {
     ///
     /// This function emits tick events at a fixed rate and polls for crossterm events in between.
     async fn run(self) -> color_eyre::Result<()> {
+        // Start bluetooth
+        let session = Session::new().await?;
+        let adapter = session.default_adapter().await?;
+
+        // Discovery filter
+        let filter = DiscoveryFilter {
+            transport: bluer::DiscoveryTransport::Auto,
+            ..DiscoveryFilter::default()
+        };
+        adapter.set_discovery_filter(filter);
+
+        // Create device event stream
+        let device_events = adapter.discover_devices().await?;
+        pin_mut!(device_events);
+
         let tick_rate = Duration::from_secs_f64(1.0 / TICK_FPS);
         let mut reader = crossterm::event::EventStream::new();
         let mut tick = tokio::time::interval(tick_rate);
@@ -108,13 +136,30 @@ impl EventTask {
             let crossterm_event = reader.next().fuse();
             tokio::select! {
               _ = self.sender.closed() => {
-                break;
+                  break;
               }
               _ = tick_delay => {
-                self.send(Event::Tick);
+                  self.send(Event::Tick);
               }
               Some(Ok(evt)) = crossterm_event => {
-                self.send(Event::Crossterm(evt));
+                  self.send(Event::Crossterm(evt));
+              }
+              Some(device_event) = device_events.next() => {
+                  // Still need to convert to crate::blt_client::Device
+                  match device_event {
+                      AdapterEvent::DeviceAdded(address) => {
+                          match Device::new(&adapter, address).await {
+                          Ok(device) => self.send(Event::Blt(BltEvent::Add(device))),
+                          Err(err) => {
+                              trace!("Err: {}", err);
+                          }
+                      };
+                      },
+                      AdapterEvent::DeviceRemoved(address) => {
+                          self.send(Event::Blt(BltEvent::Remove(address)));
+                      },
+                      _ => {},
+                  };
               }
             };
         }

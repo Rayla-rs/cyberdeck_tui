@@ -10,7 +10,7 @@ use strum_macros::{Display, EnumCount, EnumIter, VariantArray};
 use crate::{AppResult, CONFIG, app_actions::AppAction, machine::Instruction, menus::menu::Menu};
 
 use super::{
-    blt_menu::BltMenu, log_menu::LogMenu, menu::MenuState,
+    blt_menu::BltMenu, log_menu::LogMenu, menu::MenuState, mfrc522_menu::Mfrc522Menu,
     playlist_collection_menu::PlaylistCollectionMenu,
 };
 
@@ -19,6 +19,7 @@ enum Options {
     Music,
     Wifi,
     Bluetooth,
+    MFRC522,
     Log,
     Reboot,
 }
@@ -59,6 +60,7 @@ impl Menu for MainMenu {
                 CONFIG.load_playlists().collect(),
             ))),
             Options::Bluetooth => Instruction::Push(Box::new(BltMenu::new())),
+            Options::MFRC522 => Instruction::Push(Box::new(Mfrc522Menu::new().unwrap())),
             Options::Log => Instruction::Push(Box::new(LogMenu::new())),
             _ => Instruction::Continue,
         }

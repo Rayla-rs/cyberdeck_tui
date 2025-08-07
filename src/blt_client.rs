@@ -1,11 +1,23 @@
-use std::sync::Arc;
+// TODO rename to device
+use std::fmt::Display;
 
 use bluer::{Adapter, Session};
 use bluer::{Address, Device as BTDevice};
+use ratatui::buffer::Buffer;
+use ratatui::layout::{Margin, Rect};
+use ratatui::style::Stylize;
+use ratatui::text::Text;
+use ratatui::widgets::{
+    Block, Cell, HighlightSpacing, List, ListItem, ListState, Row, StatefulWidget, Widget,
+};
+use strum::{EnumCount, IntoEnumIterator};
+use strum_macros::{Display, EnumCount, EnumIter, VariantArray};
 use tracing::trace;
 
 use crate::AppResult;
-use crate::app_actions::AppAction;
+use crate::app_actions::{AppAction, PairDevice};
+use crate::machine::Instruction;
+use crate::menus::menu::{Menu, MenuState};
 
 pub struct BltClient {
     pub session: Session,
@@ -13,7 +25,7 @@ pub struct BltClient {
     pub devices: Vec<Device>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Device {
     pub bt_device: BTDevice,
     pub address: Address,
@@ -26,6 +38,41 @@ pub struct Device {
 impl Device {
     pub async fn pair(&self) -> bluer::Result<()> {
         self.bt_device.pair().await
+    }
+
+    fn data(&self) -> [String; 4] {
+        [
+            self.alias.clone(),
+            self.address.to_string(),
+            format!("{}", self.is_paired),
+            format!("{}", self.is_trusted),
+        ]
+    }
+
+    pub async fn new(adapter: &Adapter, address: Address) -> bluer::Result<Self> {
+        let bt_device = adapter.device(address)?;
+        let alias = bt_device.alias().await?;
+        let is_paired = bt_device.is_paired().await?;
+        let is_trusted = bt_device.is_trusted().await?;
+        let battery_percentage = bt_device.battery_percentage().await?;
+
+        Ok(Device {
+            bt_device,
+            address,
+            alias,
+            is_paired,
+            is_trusted,
+            battery_percentage,
+        })
+    }
+}
+
+impl<'a> Into<Row<'a>> for &'a Device {
+    fn into(self) -> Row<'a> {
+        self.data()
+            .iter()
+            .map(|elem| Cell::from(Text::from(format!("{elem}"))))
+            .collect()
     }
 }
 
@@ -64,17 +111,100 @@ impl BltClient {
         Ok(devices)
     }
 
-    pub async fn test(&self) {
+    pub async fn test(&mut self) {
         match self.get_all_devices().await {
             Ok(res) => {
-                for res in res {
-                    let res = format!("{:?}", res);
-                    trace!(res)
-                }
+                self.devices = res;
             }
             Err(_) => {
                 trace!("err");
             }
         }
+    }
+}
+
+// Device options menu
+
+#[derive(Display, EnumIter, VariantArray, EnumCount)]
+enum DeviceOptions {
+    Pair,
+    Trust,
+}
+
+impl<'a> Into<ListItem<'a>> for DeviceOptions {
+    fn into(self) -> ListItem<'a> {
+        ListItem::from(format!("{}", self))
+    }
+}
+
+#[derive(Debug)]
+pub struct DeviceMenu {
+    state: ListState,
+    device: Device,
+}
+
+impl Display for DeviceMenu {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_fmt(format_args!("bltdevice({})", self.device.alias))
+    }
+}
+
+impl Menu for DeviceMenu {
+    fn get_state(&mut self) -> &mut dyn MenuState {
+        &mut self.state
+    }
+
+    fn get_len(&self) -> usize {
+        DeviceOptions::COUNT
+    }
+
+    fn get_quick_actions(&self) -> Vec<crate::app_actions::AppAction> {
+        vec![Instruction::Pop.into()]
+    }
+
+    fn enter(&mut self) -> AppResult<crate::app_actions::AppAction> {
+        // TODO -> trust, pair, connect, untrust
+        // Extra: async popup menu
+        Ok(AppAction::StateAction(Box::new(PairDevice::new(
+            self.device.clone(),
+        ))))
+    }
+
+    fn render(&mut self, area: Rect, buf: &mut Buffer, focused: bool) -> crate::AppResult<Rect> {
+        let area = area.inner(Margin {
+            horizontal: 2,
+            vertical: 2,
+        });
+
+        ratatui::widgets::Clear::default().render(area, buf);
+
+        // todo -> make smaller hehe
+
+        // Layout::new(direction, constraints)
+
+        // paragraph of data
+
+        // List of actions
+
+        let list = List::new(DeviceOptions::iter())
+            .highlight_symbol(">")
+            .highlight_spacing(if focused {
+                HighlightSpacing::Always
+            } else {
+                HighlightSpacing::Never
+            })
+            .yellow()
+            .block(Block::bordered());
+        StatefulWidget::render(list, area.clone(), buf, &mut self.state);
+
+        Ok(area)
+    }
+}
+
+impl DeviceMenu {
+    pub fn new(device: Device) -> Self {
+        let mut state = ListState::default();
+        state.select_first();
+        Self { state, device }
     }
 }

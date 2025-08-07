@@ -2,7 +2,7 @@ use std::fmt::{Debug, Display};
 
 use ratatui::widgets::ListItem;
 
-use crate::{app::AppState, machine::Instruction, playlist::Playlist};
+use crate::{app::AppState, blt_client::Device, machine::Instruction, playlist::Playlist};
 
 pub trait StateAction: Debug + Display {
     fn mutate_state(self: Box<Self>, state: &mut AppState);
@@ -48,9 +48,40 @@ impl StateAction for ClearLog {
 }
 
 #[derive(Debug)]
+pub struct PairDevice {
+    device: Device,
+}
+
+impl Display for PairDevice {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_fmt(format_args!("pair({:?})", self.device))
+    }
+}
+
+impl StateAction for PairDevice {
+    fn mutate_state(self: Box<Self>, state: &mut AppState) {
+        tokio::spawn(async move {
+            let _ = self.device.bt_device.connect().await;
+            let _ = self.device.bt_device.pair().await;
+        });
+    }
+}
+
+impl PairDevice {
+    pub fn new(device: Device) -> Self {
+        Self { device }
+    }
+}
+
+pub trait AppOnce: Display + Debug {
+    fn once(self: Box<Self>);
+}
+
+#[derive(Debug)]
 pub enum AppAction {
     MachineAction(Instruction),
     StateAction(Box<dyn StateAction>),
+    Once(Box<dyn AppOnce>),
 }
 
 impl From<Instruction> for AppAction {
@@ -70,6 +101,7 @@ impl Display for AppAction {
         match self {
             Self::MachineAction(instruction) => f.write_fmt(format_args!("{}", instruction)),
             Self::StateAction(state_action) => f.write_fmt(format_args!("{}", state_action)),
+            Self::Once(once) => f.write_fmt(format_args!("{}", once)),
         }
     }
 }

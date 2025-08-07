@@ -34,5 +34,3 @@ async fn main() -> AppResult<()> {
     ratatui::restore();
     result
 }
-
-// TODO make "corupted" text using rng for fun when bad meta data
