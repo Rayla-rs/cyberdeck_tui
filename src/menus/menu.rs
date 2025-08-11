@@ -1,12 +1,14 @@
-use std::fmt::{Debug, Display};
+use std::marker::PhantomData;
 
+use color_eyre::eyre::OptionExt;
 use ratatui::{
     buffer::Buffer,
-    layout::Rect,
-    widgets::{ListState, TableState},
+    layout::{Constraint, Rect},
+    style::Stylize,
+    widgets::{Block, HighlightSpacing, Row, StatefulWidget, Table, TableState, Widget},
 };
 
-use crate::{AppResult, app::AppState, app_actions::AppAction, machine::Instruction};
+use crate::event::AppEvent;
 
 pub enum NavigationResult {
     Ok,
@@ -14,222 +16,149 @@ pub enum NavigationResult {
     Next,
 }
 
-#[deprecated]
-pub trait Menu: Debug + Display {
-    fn get_state(&mut self) -> &mut dyn MenuState;
+enum Assert<const COND: bool> {}
 
-    fn get_len(&self) -> usize;
+trait IsTrue {}
 
+impl IsTrue for Assert<true> {}
+
+pub struct MenuFrame<const N: usize>
+where
+    Assert<{ N > 0 }>: IsTrue,
+{
+    menus: [Box<dyn Menu>; N],
+    selected: usize,
+}
+
+impl<const N: usize> MenuFrame<N>
+where
+    Assert<{ N > 0 }>: IsTrue,
+{
+    fn new(menus: [Box<dyn Menu>; N]) -> Self {
+        Self { menus, selected: 0 }
+    }
+}
+
+impl<const N: usize> Menu for MenuFrame<N>
+where
+    Assert<{ N > 0 }>: IsTrue,
+{
     fn up(&mut self) -> NavigationResult {
-        let state = self.get_state();
-        if let Some(selected) = state.selected() {
+        todo!()
+    }
+    fn down(&mut self) -> NavigationResult {
+        todo!()
+    }
+    fn enter(&mut self) -> color_eyre::Result<Option<AppEvent>> {
+        todo!()
+    }
+    fn render(&mut self, area: Rect, buf: &mut Buffer, focused: bool) -> color_eyre::Result<Rect> {
+        todo!()
+    }
+}
+
+pub trait Menu {
+    fn up(&mut self) -> NavigationResult;
+    fn down(&mut self) -> NavigationResult;
+    fn enter(&mut self) -> color_eyre::Result<Option<AppEvent>>;
+    fn render(&mut self, area: Rect, buf: &mut Buffer, focused: bool) -> color_eyre::Result<Rect>;
+    // todo -> get v constraint
+}
+
+pub struct TableMenu<'a, T, C>
+where
+    T: 'a + Into<AppEvent> + Clone,
+    &'a T: Into<Row<'a>>,
+    C: IntoIterator + Clone,
+    C::Item: Into<Constraint>,
+{
+    items: Vec<T>,
+    widths: C,
+    state: TableState,
+    phantom: PhantomData<&'a T>,
+}
+
+impl<'a, T, C> TableMenu<'a, T, C>
+where
+    T: 'a + Into<AppEvent> + Clone,
+    &'a T: Into<Row<'a>>,
+    C: 'a + IntoIterator + Clone,
+    C::Item: Into<Constraint>,
+{
+    pub fn new(items: Vec<T>, widths: C) -> Self {
+        let mut state = TableState::default();
+        state.select_first();
+        Self {
+            items,
+            widths,
+            state,
+            phantom: PhantomData::default(),
+        }
+    }
+}
+
+impl<'a, T, C> Menu for TableMenu<'a, T, C>
+where
+    T: 'a + Into<AppEvent> + Clone,
+    &'a T: Into<Row<'a>>,
+    C: 'a + IntoIterator + Clone,
+    C::Item: Into<Constraint>,
+{
+    fn up(&mut self) -> NavigationResult {
+        if let Some(selected) = self.state.selected() {
             if selected == 0 {
                 NavigationResult::Previous
             } else {
-                state.select_previous();
+                self.state.select_previous();
                 NavigationResult::Ok
             }
         } else {
-            state.select_previous();
+            self.state.select_previous();
             NavigationResult::Ok
         }
     }
 
     fn down(&mut self) -> NavigationResult {
-        let len = self.get_len();
-        let state = self.get_state();
-
-        state.select_next();
-        if let Some(selected) = state.selected() {
-            if selected >= len {
+        self.state.select_next();
+        if let Some(selected) = self.state.selected() {
+            if selected >= self.items.len() {
                 NavigationResult::Next
             } else {
                 NavigationResult::Ok
             }
         } else {
-            state.select_next();
+            self.state.select_next();
             NavigationResult::Ok
         }
     }
 
-    fn enter(&mut self) -> AppResult<AppAction> {
-        Ok(Instruction::Continue.into())
+    fn enter(&mut self) -> color_eyre::Result<Option<AppEvent>> {
+        Ok(match self.state.selected() {
+            Some(index) => Some(
+                self.items
+                    .get(index)
+                    .ok_or_eyre("Out of bounds")?
+                    .clone()
+                    .into(),
+            ),
+            None => None,
+        })
     }
 
-    fn get_quick_actions(&self) -> Vec<AppAction> {
-        vec![]
-    }
+    fn render(&mut self, area: Rect, buf: &mut Buffer, focused: bool) -> color_eyre::Result<Rect> {
+        ratatui::widgets::Clear::default().render(area, buf);
 
-    fn tick(&mut self, _app_state: &mut AppState) -> AppResult<Instruction> {
-        Ok(Instruction::Continue)
-    }
-    fn render(&mut self, area: Rect, buf: &mut Buffer, focused: bool) -> AppResult<Rect>;
-}
-
-pub trait MenuState {
-    fn select(&mut self, index: Option<usize>);
-    fn selected(&self) -> Option<usize>;
-    fn select_next(&mut self);
-    fn select_previous(&mut self);
-    fn select_first(&mut self);
-    fn select_last(&mut self);
-}
-
-impl MenuState for ListState {
-    fn select(&mut self, index: Option<usize>) {
-        self.select(index);
-    }
-    fn selected(&self) -> Option<usize> {
-        self.selected()
-    }
-    fn select_next(&mut self) {
-        self.select_next();
-    }
-    fn select_previous(&mut self) {
-        self.select_previous();
-    }
-    fn select_first(&mut self) {
-        self.select_first();
-    }
-    fn select_last(&mut self) {
-        self.select_last();
-    }
-}
-
-impl MenuState for TableState {
-    fn select(&mut self, index: Option<usize>) {
-        self.select(index);
-    }
-    fn selected(&self) -> Option<usize> {
-        self.selected()
-    }
-    fn select_next(&mut self) {
-        self.select_next();
-    }
-    fn select_previous(&mut self) {
-        self.select_previous();
-    }
-    fn select_first(&mut self) {
-        self.select_next();
-    }
-    fn select_last(&mut self) {
-        self.select_last();
-    }
-}
-
-#[allow(unused)]
-mod test {
-    use std::marker::PhantomData;
-
-    use color_eyre::eyre::OptionExt;
-    use ratatui::{
-        buffer::Buffer,
-        layout::{Constraint, Margin, Rect},
-        style::Stylize,
-        widgets::{Block, HighlightSpacing, List, Row, StatefulWidget, Table, TableState, Widget},
-    };
-
-    use crate::event::AppEvent;
-
-    use super::{MenuState, NavigationResult};
-
-    pub struct Menu<'a, T, C>
-    where
-        T: 'a + Into<AppEvent> + Clone,
-        &'a T: Into<Row<'a>>,
-        C: IntoIterator + Clone,
-        C::Item: Into<Constraint>,
-    {
-        items: Vec<T>,
-        widths: C,
-        state: TableState,
-        phantom: PhantomData<&'a T>,
-    }
-
-    impl<'a, T, C> Menu<'a, T, C>
-    where
-        T: 'a + Into<AppEvent> + Clone,
-        &'a T: Into<Row<'a>>,
-        C: 'a + IntoIterator + Clone,
-        C::Item: Into<Constraint>,
-    {
-        pub fn new(items: Vec<T>, widths: C) -> Self {
-            let mut state = TableState::default();
-            state.select_first();
-            Self {
-                items,
-                widths,
-                state,
-                phantom: PhantomData::default(),
-            }
-        }
-
-        pub fn up(&mut self) -> NavigationResult {
-            if let Some(selected) = self.state.selected() {
-                if selected == 0 {
-                    NavigationResult::Previous
-                } else {
-                    self.state.select_previous();
-                    NavigationResult::Ok
-                }
+        let list = Table::new(self.items.iter(), self.widths.clone())
+            .highlight_symbol(">")
+            .highlight_spacing(if focused {
+                HighlightSpacing::Always
             } else {
-                self.state.select_previous();
-                NavigationResult::Ok
-            }
-        }
-
-        pub fn down(&mut self) -> NavigationResult {
-            self.state.select_next();
-            if let Some(selected) = self.state.selected() {
-                if selected >= self.items.len() {
-                    NavigationResult::Next
-                } else {
-                    NavigationResult::Ok
-                }
-            } else {
-                self.state.select_next();
-                NavigationResult::Ok
-            }
-        }
-
-        pub fn enter(&mut self) -> color_eyre::Result<Option<AppEvent>> {
-            Ok(match self.state.selected() {
-                Some(index) => Some(
-                    self.items
-                        .get(index)
-                        .ok_or_eyre("Out of bounds")?
-                        .clone()
-                        .into(),
-                ),
-                None => None,
+                HighlightSpacing::Never
             })
-        }
+            .yellow()
+            .block(Block::bordered());
+        StatefulWidget::render(list, area.clone(), buf, &mut self.state);
 
-        pub fn render(
-            &'a mut self,
-            area: Rect,
-            buf: &mut Buffer,
-            focused: bool,
-        ) -> color_eyre::Result<Rect> {
-            let area = area.inner(Margin {
-                horizontal: 2,
-                vertical: 2,
-            });
-
-            ratatui::widgets::Clear::default().render(area, buf);
-
-            let list = Table::new(self.items.iter(), self.widths.clone())
-                .highlight_symbol(">")
-                .highlight_spacing(if focused {
-                    HighlightSpacing::Always
-                } else {
-                    HighlightSpacing::Never
-                })
-                .yellow()
-                .block(Block::bordered());
-            StatefulWidget::render(list, area.clone(), buf, &mut self.state);
-
-            Ok(area)
-        }
+        Ok(area)
     }
 }
