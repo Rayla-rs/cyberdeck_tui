@@ -1,6 +1,7 @@
 use std::fmt::{Debug, Display};
 
 use ratatui::widgets::ListItem;
+use serde::de::value;
 
 use crate::{app::AppState, blt_client::Device, machine::Instruction, playlist::Playlist};
 
@@ -58,8 +59,8 @@ impl Display for PairDevice {
     }
 }
 
-impl StateAction for PairDevice {
-    fn mutate_state(self: Box<Self>, state: &mut AppState) {
+impl AppOnce for PairDevice {
+    fn once(self: Box<Self>) {
         tokio::spawn(async move {
             let _ = self.device.bt_device.connect().await;
             let _ = self.device.bt_device.pair().await;

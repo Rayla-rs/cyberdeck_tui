@@ -122,7 +122,7 @@ impl EventTask {
             transport: bluer::DiscoveryTransport::Auto,
             ..DiscoveryFilter::default()
         };
-        adapter.set_discovery_filter(filter);
+        adapter.set_discovery_filter(filter).await?;
 
         // Create device event stream
         let device_events = adapter.discover_devices().await?;
@@ -145,7 +145,6 @@ impl EventTask {
                   self.send(Event::Crossterm(evt));
               }
               Some(device_event) = device_events.next() => {
-                  // Still need to convert to crate::blt_client::Device
                   match device_event {
                       AdapterEvent::DeviceAdded(address) => {
                           match Device::new(&adapter, address).await {
@@ -158,7 +157,9 @@ impl EventTask {
                       AdapterEvent::DeviceRemoved(address) => {
                           self.send(Event::Blt(BltEvent::Remove(address)));
                       },
-                      _ => {},
+                      _ => {
+                          // device updated
+                      },
                   };
               }
             };

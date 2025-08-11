@@ -10,12 +10,12 @@ use ratatui::text::Text;
 use ratatui::widgets::{
     Block, Cell, HighlightSpacing, List, ListItem, ListState, Row, StatefulWidget, Widget,
 };
-use strum::{EnumCount, IntoEnumIterator};
+use strum::{EnumCount, IntoEnumIterator, VariantArray};
 use strum_macros::{Display, EnumCount, EnumIter, VariantArray};
 use tracing::trace;
 
 use crate::AppResult;
-use crate::app_actions::{AppAction, PairDevice};
+use crate::app_actions::{AppAction, AppOnce, PairDevice};
 use crate::machine::Instruction;
 use crate::menus::menu::{Menu, MenuState};
 
@@ -165,15 +165,20 @@ impl Menu for DeviceMenu {
     fn enter(&mut self) -> AppResult<crate::app_actions::AppAction> {
         // TODO -> trust, pair, connect, untrust
         // Extra: async popup menu
-        Ok(AppAction::StateAction(Box::new(PairDevice::new(
-            self.device.clone(),
-        ))))
+        Ok(
+            match DeviceOptions::VARIANTS[self.state.selected().unwrap()] {
+                DeviceOptions::Pair => {
+                    AppAction::Once(Box::new(PairDevice::new(self.device.clone())))
+                }
+                DeviceOptions::Trust => AppAction::Once(Box::new(Trust::new(self.device.clone()))),
+            },
+        )
     }
 
     fn render(&mut self, area: Rect, buf: &mut Buffer, focused: bool) -> crate::AppResult<Rect> {
         let area = area.inner(Margin {
-            horizontal: 2,
-            vertical: 2,
+            horizontal: 5,
+            vertical: 5,
         });
 
         ratatui::widgets::Clear::default().render(area, buf);
@@ -206,5 +211,30 @@ impl DeviceMenu {
         let mut state = ListState::default();
         state.select_first();
         Self { state, device }
+    }
+}
+
+#[derive(Debug)]
+struct Trust {
+    device: Device,
+}
+
+impl Display for Trust {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_fmt(format_args!("trust({:?})", self.device))
+    }
+}
+
+impl AppOnce for Trust {
+    fn once(self: Box<Self>) {
+        tokio::spawn(async move {
+            let _ = self.device.bt_device.set_trusted(true);
+        });
+    }
+}
+
+impl Trust {
+    fn new(device: Device) -> Self {
+        Self { device }
     }
 }
