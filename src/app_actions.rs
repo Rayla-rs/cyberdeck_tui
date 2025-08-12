@@ -1,9 +1,8 @@
 use std::fmt::{Debug, Display};
 
 use ratatui::widgets::ListItem;
-use serde::de::value;
 
-use crate::{app::AppState, blt_client::Device, machine::Instruction, playlist::Playlist};
+use crate::{app::AppState, blt_client::Device, playlist::Playlist};
 
 pub trait StateAction: Debug + Display {
     fn mutate_state(self: Box<Self>, state: &mut AppState);

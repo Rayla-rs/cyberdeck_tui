@@ -1,6 +1,7 @@
+use color_eyre::eyre::OptionExt;
 use serde::Deserialize;
 
-use crate::{AppResult, playlist::Playlist};
+use crate::playlist::Playlist;
 
 #[derive(Deserialize, Debug)]
 pub struct Config {
@@ -9,7 +10,7 @@ pub struct Config {
 
 impl Config {
     /// Create new config from users config!
-    pub fn new() -> AppResult<Self> {
+    pub fn new() -> color_eyre::Result<Self> {
         // let mut path = dirs::config_dir()
         //     .ok_or("User config directory not found!")?
         //     .join("cyberdeck_tui");
@@ -19,7 +20,7 @@ impl Config {
 
         Ok(toml::from_str(&std::fs::read_to_string(
             dirs::config_dir()
-                .ok_or("User config directory not found!")?
+                .ok_or_eyre("User config directory not found!")?
                 .join("cyberdeck_tui")
                 .join("config.toml"),
         )?)?)

@@ -7,17 +7,17 @@ use lazy_static::lazy_static;
 use crate::app::App;
 
 pub mod app;
-pub mod app_actions;
+// pub mod app_actions;
 mod audio_player;
 pub mod blt_client;
 pub mod config;
 pub mod event;
 pub mod logging;
-mod machine;
+// mod machine;
 pub mod menus;
 mod playlist;
 mod track;
-mod track_widget;
+// mod track_widget;
 pub mod ui;
 
 pub type Error = Box<dyn std::error::Error>;
@@ -25,6 +25,8 @@ pub type AppResult<T> = std::result::Result<T, Error>;
 
 lazy_static! {
     static ref CONFIG: Config = Config::new().unwrap();
+    static ref USER: String = whoami::username();
+    static ref DEVICE: String = whoami::devicename();
 }
 
 #[tokio::main]

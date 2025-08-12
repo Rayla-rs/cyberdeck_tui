@@ -1,27 +1,19 @@
-use std::collections::{HashMap, HashSet};
-use std::fmt::Display;
+use std::collections::HashMap;
 
-use crate::app_actions::{AppAction, AppOnce};
-use crate::blt_client::{BltClient, Device};
+use crate::blt_client::Device;
 use crate::event::BltEvent;
-use crate::machine::Instruction;
-use crate::menus::menu::{Menu, NavigationResult};
+use crate::menus::{self, Menu};
 use crate::trace_dbg;
 use crate::{
     audio_player::AudioPlayer,
-    config::Config,
     event::{AppEvent, Event, EventHandler},
-    machine::Machine,
-    menus::quick_menu::QuickMenu,
 };
-use bluer::{Address, Session};
+use bluer::Address;
 use bluetui::app::AppResult;
-use ratatui::widgets::ListItem;
 use ratatui::{
     DefaultTerminal,
     crossterm::event::{KeyCode, KeyEvent, KeyModifiers},
 };
-use tracing::{Level, event, trace};
 
 #[derive(PartialEq, Eq)]
 pub enum Focus {
@@ -31,18 +23,22 @@ pub enum Focus {
 
 pub struct AppState {
     pub player: AudioPlayer,
-    pub config: Config, //blt session
-    pub blt_client: BltClient,
     pub devices: HashMap<Address, Device>,
+}
+
+impl AppState {
+    fn new() -> Self {
+        Self {
+            player: AudioPlayer::new(),
+            devices: HashMap::default(),
+        }
+    }
 }
 
 /// Application.
 pub struct App {
-    pub context: String,
     pub state: AppState,
-    pub machine: Machine,
-    pub quick_menu: QuickMenu,
-    pub focus: Focus,
+    pub menu: Box<dyn Menu>,
     /// Is the application running?
     pub running: bool,
     /// Event handler.
@@ -51,41 +47,18 @@ pub struct App {
 
 impl App {
     /// Constructs a new instance of [`App`].
-    pub async fn new() -> AppResult<Self> {
+    pub async fn new() -> color_eyre::Result<Self> {
         Ok(Self {
-            context: format!("{}@{}", whoami::username(), whoami::devicename()),
-            state: AppState {
-                player: AudioPlayer::new(),
-                config: Config::new()?,
-                blt_client: BltClient::new().await?,
-                devices: HashMap::default(),
-            },
-            machine: Machine::new(),
-            quick_menu: QuickMenu::new(),
-            focus: Focus::MachineMenu,
+            state: AppState::new(),
             running: true,
             events: EventHandler::new(),
+            menu: menus::make_test_menu(),
         })
     }
 
     /// Run the application's main loop.
     pub async fn run(mut self, mut terminal: DefaultTerminal) -> AppResult<()> {
-        while self.running && self.machine.is_running() {
-            // YES!!! I know this is janky as fuck!
-            // Its to much of a pain tho to get ownership to work with actions and
-            // The quick menu must consume them when returning with its enter
-            // implimentation
-            //
-            // Unless it causes any major bugs or a better solution is found ur
-            // better of rehidrating the Sahara with those tears!
-            // (I spent way to long trying to find a nice way to do this)
-            self.quick_menu.actions = self.machine.last_mut().get_quick_actions();
-            if self.quick_menu.state.selected().is_none() {
-                self.quick_menu.state.select_first();
-            }
-
-            self.state.player.tick();
-
+        while self.running {
             terminal.draw(|frame| frame.render_widget(&mut self, frame.area()))?;
             match self.events.next().await? {
                 Event::Tick => self.tick(), // change to async
@@ -100,6 +73,9 @@ impl App {
                         self.enter()?;
                     }
                     AppEvent::Quit => self.quit(),
+                    AppEvent::Debug => {
+                        trace_dbg!("Debuged");
+                    }
                 },
                 Event::Blt(device_event) => match device_event {
                     BltEvent::Add(dev) => {
@@ -132,7 +108,7 @@ impl App {
     /// The tick event is where you can update the state of your application with any logic that
     /// needs to be updated at a fixed frame rate. E.g. polling a server, updating an animation.
     pub fn tick(&mut self) {
-        self.machine.tick(&mut self.state).ok().unwrap();
+        self.state.player.tick();
 
         // validate cursor location
     }
@@ -142,52 +118,18 @@ impl App {
         self.running = false;
     }
 
-    pub fn enter(&mut self) -> AppResult<()> {
-        let action = match self.focus {
-            Focus::MachineMenu => self.machine.last_mut().enter()?,
-            Focus::QuickMenu => self.quick_menu.enter()?,
-        };
-        self.handel_action(action)
+    pub fn enter(&mut self) -> color_eyre::Result<()> {
+        Ok(if let Some(event) = self.menu.enter()? {
+            self.events.send(event);
+        })
     }
 
     pub fn up(&mut self) {
-        match self.focus {
-            Focus::MachineMenu => {
-                let _ = self.machine.last_mut().up();
-            }
-            Focus::QuickMenu => match self.quick_menu.up() {
-                NavigationResult::Previous => self.focus = Focus::MachineMenu,
-                _ => {}
-            },
-        }
+        self.menu.up();
     }
 
     pub fn down(&mut self) {
-        match self.focus {
-            Focus::MachineMenu => match self.machine.last_mut().down() {
-                NavigationResult::Next => {
-                    self.focus = Focus::QuickMenu;
-                }
-                _ => {}
-            },
-            Focus::QuickMenu => {
-                let _ = self.quick_menu.down();
-            }
-        }
-    }
-
-    fn handel_action(&mut self, action: AppAction) -> AppResult<()> {
-        // Trace
-        trace!(?action);
-
-        match action {
-            AppAction::MachineAction(instruction) => self.machine.handle_instruction(instruction),
-            AppAction::StateAction(mutator) => {
-                mutator.mutate_state(&mut self.state);
-            }
-            AppAction::Once(once) => once.once(),
-        }
-        Ok(())
+        self.menu.down();
     }
 
     fn add_device(&mut self, device: Device) {

@@ -1,21 +1,36 @@
-use audiotags::{AudioTag, Tag};
-use hhmmss::Hhmmss;
-use rodio::{Decoder, Source};
+use audiotags::Tag;
+use color_eyre::eyre::Context;
+// use hhmmss::Hhmmss;
+use rodio::Decoder;
 
 use std::{
-    fmt::{Debug, Display},
+    fmt::Debug,
     fs::{File, OpenOptions},
     io::BufReader,
     path::PathBuf,
     time::Duration,
 };
 
-use crate::trace_dbg;
+// make into decoder for track and on cp do not rebuild
 
+#[derive(Clone)]
 pub struct Track {
-    path: PathBuf,
-    tags: Box<dyn AudioTag>, // Refactor to make less err prone
-    pub decoder: Decoder<BufReader<File>>,
+    pub path: PathBuf,
+    pub title: String,
+    pub artist: String,
+    pub total_duration: Duration,
+}
+
+impl Track {
+    pub fn decode(&self) -> color_eyre::Result<Decoder<BufReader<File>>> {
+        Decoder::try_from(
+            OpenOptions::new()
+                .read(true)
+                .open(self.path.clone())
+                .wrap_err("Failed to open file!")?,
+        )
+        .wrap_err("Rodio decoder err!")
+    }
 }
 
 impl Debug for Track {
@@ -24,49 +39,15 @@ impl Debug for Track {
     }
 }
 
-impl Clone for Track {
-    fn clone(&self) -> Self {
-        // Expect it to work because &self exists
-        Self::try_from(self.path.clone()).unwrap()
-    }
-}
-
 impl TryFrom<PathBuf> for Track {
     type Error = crate::Error;
     fn try_from(value: PathBuf) -> Result<Self, Self::Error> {
+        let tag = Tag::new().read_from_path(value.clone())?;
         Ok(Self {
             path: value.clone(),
-            tags: Tag::new().read_from_path(value.clone())?,
-            decoder: Decoder::try_from(OpenOptions::new().read(true).open(value)?)?,
+            title: tag.title().unwrap_or_default().to_string(),
+            artist: tag.artist().unwrap_or_default().to_string(),
+            total_duration: Duration::from_secs(tag.duration().unwrap_or_default() as u64),
         })
-    }
-}
-
-impl Display for Track {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!(
-            "Track(Title: {}, Path: {})",
-            self.tags.title().unwrap_or("???"),
-            self.path.to_string_lossy()
-        ))
-    }
-}
-
-impl Track {
-    pub fn total_duration(&self) -> Option<Duration> {
-        self.decoder.total_duration()
-    }
-    pub fn get_extension(&self) {}
-
-    pub fn data(&self) -> [String; 3] {
-        [
-            self.tags.title().unwrap_or_default().to_string(),
-            self.tags.artist().unwrap_or_default().to_string(),
-            Duration::from_secs(self.tags.duration().unwrap_or_default() as u64).hhmmss(),
-        ]
-    }
-
-    pub fn title(&self) -> String {
-        self.tags.title().unwrap_or_default().to_string()
     }
 }

@@ -34,9 +34,7 @@ impl Playlist {
     pub fn get_duration(&self) -> Duration {
         self.tracks
             .iter()
-            .fold(Duration::default(), |acc, elem| {
-                acc + elem.total_duration().unwrap_or_default()
-            })
+            .fold(Duration::default(), |acc, elem| acc + elem.total_duration)
             .into()
     }
 }

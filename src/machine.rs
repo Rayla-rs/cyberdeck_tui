@@ -2,11 +2,7 @@ use std::fmt::Display;
 
 use ratatui::{buffer::Buffer, layout::Rect};
 
-use crate::{
-    AppResult,
-    app::AppState,
-    menus::{main_menu::MainMenu, menu::Menu},
-};
+use crate::{AppResult, app::AppState, menus::Menu};
 
 #[derive(Debug)]
 pub enum Instruction {
@@ -48,11 +44,11 @@ impl Display for Machine {
 }
 
 impl Machine {
-    pub fn new() -> Self {
-        Self {
-            stack: vec![Box::new(MainMenu::new())],
-        }
-    }
+    // pub fn new() -> Self {
+    //     Self {
+    //         stack: vec![Box::new(MainMenu::new())],
+    //     }
+    // }
 
     pub fn last_mut(&mut self) -> &mut Box<dyn Menu> {
         self.stack.last_mut().unwrap()
@@ -74,13 +70,13 @@ impl Machine {
         match inst {
             Instruction::Continue => {}
             Instruction::Pop => {
-                let _ = self.stack.pop();
+                drop(self.stack.pop());
             }
             Instruction::Push(menu) => {
                 self.stack.push(menu);
             }
             Instruction::PopPush(menu) => {
-                let _ = self.stack.pop();
+                drop(self.stack.pop());
                 self.stack.push(menu);
             }
         }

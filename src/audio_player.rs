@@ -1,11 +1,10 @@
-use std::fmt::Debug;
+use std::{fmt::Debug, ops::Deref};
 
-use chrono::Duration;
 use hhmmss::Hhmmss;
-use rodio::{Decoder, OutputStream, Sink, Source, source::SineWave};
-use tracing::{Level, Span, info, instrument, span, trace};
+use rodio::{OutputStream, Sink};
+use tracing::{Level, instrument, span, trace};
 
-use crate::{AppResult, playlist::Playlist, track::Track};
+use crate::{playlist::Playlist, track::Track};
 
 pub struct AudioPlayer {
     stream_handle: OutputStream,
@@ -75,19 +74,19 @@ impl AudioPlayer {
         !self.queue.is_empty()
     }
 
-    fn next(&mut self) {
+    fn next(&mut self) -> color_eyre::Result<()> {
         self.current = self.queue.pop();
         self.sink.clear();
-        // Eww clone pls fix someday pls
-        if let Some(track) = self.current.clone() {
+        if let Some(track) = self.current.as_ref() {
             trace!("play_next");
-            self.sink.append(track.decoder);
+            self.sink.append(track.decode()?);
         }
+        Ok(())
     }
 
     #[instrument]
     pub fn push_track(&mut self, track: Track) {
-        trace!("pushed track {}", track);
+        trace!("pushed track {:?}", track);
         self.queue.push(track);
     }
 
@@ -110,14 +109,11 @@ impl AudioPlayer {
 
     pub fn get_progress(&self) -> f64 {
         match self.current.as_ref() {
-            Some(current) => match current.total_duration() {
-                Some(total_duration) => self
-                    .sink
-                    .get_pos()
-                    .div_duration_f64(total_duration)
-                    .clamp(0.0, 1.0),
-                None => 0.0,
-            },
+            Some(current) => self
+                .sink
+                .get_pos()
+                .div_duration_f64(current.total_duration)
+                .clamp(0.0, 1.0),
             None => 0.0,
         }
     }
@@ -128,10 +124,7 @@ impl AudioPlayer {
             self.sink.get_pos().hhmmss(),
             match self.current.as_ref() {
                 Some(current) => {
-                    match current.total_duration() {
-                        Some(total_duration) => total_duration.hhmmss(),
-                        None => String::from("NAN"),
-                    }
+                    current.total_duration.hhmmss()
                 }
                 None => String::from("NAN"),
             }

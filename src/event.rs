@@ -42,8 +42,8 @@ pub enum AppEvent {
     Enter,
     /// Quit the application.
     Quit,
-    // TODO
-    // BLT EVENTS
+    //
+    Debug,
 }
 
 #[derive(Clone, Debug)]
