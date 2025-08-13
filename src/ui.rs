@@ -6,7 +6,7 @@ use ratatui::{
     widgets::{Block, BorderType, Widget},
 };
 
-use crate::app::App;
+use crate::{app::App, menus::Menu};
 
 impl Widget for &mut App {
     fn render(self, area: Rect, buf: &mut Buffer) {
@@ -19,7 +19,7 @@ impl Widget for &mut App {
             .title_alignment(Alignment::Center)
             .border_type(BorderType::Plain);
 
-        // Render blocks
+        self.menu.render(block.inner(area), buf, true);
         block.render(area, buf);
     }
 }

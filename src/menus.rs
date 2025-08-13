@@ -1,12 +1,10 @@
-use std::marker::PhantomData;
+use std::fmt::{Debug, Write};
 
 use color_eyre::eyre::OptionExt;
 use ratatui::{
     buffer::Buffer,
     layout::{Constraint, Layout, Rect},
-    style::Stylize,
-    text::Text,
-    widgets::{Block, Cell, HighlightSpacing, Row, StatefulWidget, Table, TableState, Widget},
+    widgets::{HighlightSpacing, Row, StatefulWidget, Table, TableState, Widget},
 };
 
 // TODO:
@@ -15,7 +13,7 @@ use ratatui::{
 // Unbounded events
 // Info Menu (Not items just paragraph or data)
 
-use crate::event::AppEvent;
+use crate::{app::AppState, event::AppEvent};
 
 pub enum NavigationResult {
     Ok,
@@ -31,22 +29,102 @@ pub trait Menu {
     fn render(&mut self, area: Rect, buf: &mut Buffer, focused: bool);
     fn constraint(&self) -> Constraint;
 
-    // TODO: fn tick(&mut self, app_state: AppState);
+    fn tick(&mut self, _app_state: &AppState) -> color_eyre::Result<()> {
+        Ok(())
+    }
 }
 
-pub struct StackingMenu {
+pub struct LinkedMenu {
     current: Box<dyn Menu>,
-    next: Option<Box<dyn Menu>>,
+    next: Option<Box<LinkedMenu>>,
 }
 
-impl StackingMenu {
-    // how do i handel pop / push events
+impl Debug for LinkedMenu {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("LinkedMenu")
+    }
+}
+
+impl LinkedMenu {
+    pub fn new(current: Box<dyn Menu>) -> Self {
+        Self {
+            current,
+            next: None,
+        }
+    }
+
+    pub fn new_with_next(current: Box<dyn Menu>, next: LinkedMenu) -> Self {
+        Self {
+            current,
+            next: Some(Box::new(next)),
+        }
+    }
+
+    fn is_leaf(&self) -> bool {
+        self.next.is_none()
+    }
+
+    pub fn push(&mut self, menu: LinkedMenu) {
+        match self.next.as_mut() {
+            Some(next) => next.push(menu),
+            None => self.next = Some(Box::new(menu)),
+        }
+    }
+
+    /// Pops the last element of the list
+    ///
+    /// If this is called on a leaf it does nothing
+    pub fn pop(&mut self) {
+        if let Some(next) = self.next.as_mut() {
+            if next.is_leaf() {
+                self.next = None;
+            } else {
+                next.pop()
+            }
+        }
+    }
+}
+
+impl Menu for LinkedMenu {
+    fn up(&mut self) -> NavigationResult {
+        match self.next.as_mut() {
+            Some(next) => next.up(),
+            None => self.current.up(),
+        }
+    }
+
+    fn down(&mut self) -> NavigationResult {
+        match self.next.as_mut() {
+            Some(next) => next.down(),
+            None => self.current.down(),
+        }
+    }
+
+    fn enter(&mut self) -> color_eyre::Result<Option<AppEvent>> {
+        match self.next.as_mut() {
+            Some(next) => next.enter(),
+            None => self.current.enter(),
+        }
+    }
+
+    fn render(&mut self, area: Rect, buf: &mut Buffer, focused: bool) {
+        match self.next.as_mut() {
+            Some(next) => next.render(area, buf, focused),
+            None => self.current.render(area, buf, focused),
+        }
+    }
+
+    /// Not aplicable for this menu however in the future
+    /// may be if pop and push(..) are handeled diffrently
+    fn constraint(&self) -> Constraint {
+        Constraint::Fill(100)
+    }
 }
 
 //TODO move to util.rs
-enum Assert<const COND: bool> {}
+pub enum Assert<const COND: bool> {}
 
-trait IsTrue {}
+pub trait IsTrue {}
 
 impl IsTrue for Assert<true> {}
 
@@ -57,6 +135,7 @@ where
 {
     menus: [Box<dyn Menu>; N],
     selected: usize,
+    // TODO -> next
 }
 
 impl<const N: usize> MenuFrame<N>
@@ -64,7 +143,9 @@ where
     Assert<{ N > 0 }>: IsTrue,
 {
     fn new(menus: [Box<dyn Menu>; N]) -> Self {
-        Self { menus, selected: 0 }
+        let mut frame = Self { menus, selected: 0 };
+        let _ = frame.down();
+        frame
     }
 }
 
@@ -77,10 +158,11 @@ where
             NavigationResult::Ok => NavigationResult::Ok,
             NavigationResult::Previous => {
                 if self.selected == 0 {
-                    NavigationResult::Previous
+                    self.selected = N - 1;
                 } else {
-                    self.up()
+                    self.selected -= 1;
                 }
+                self.up()
             }
             NavigationResult::Next => {
                 panic!("Unexpected Result")
@@ -93,10 +175,11 @@ where
             NavigationResult::Ok => NavigationResult::Ok,
             NavigationResult::Next => {
                 if self.selected == N - 1 {
-                    NavigationResult::Next
+                    self.selected = 0;
                 } else {
-                    self.down()
+                    self.selected += 1;
                 }
+                self.down()
             }
             NavigationResult::Previous => {
                 panic!("Unexpected Result")
@@ -126,6 +209,8 @@ where
     }
 }
 
+pub trait Item: Into<AppEvent> + Into<Row<'static>> + Clone {}
+
 pub struct TableMenu<T, C>
 where
     T: Item,
@@ -145,12 +230,10 @@ where
     C::Item: Into<Constraint>,
 {
     pub fn new(items: Vec<T>, widths: C, constraint: Constraint) -> Self {
-        let mut state = TableState::default();
-        state.select_first();
         Self {
             items,
             widths,
-            state,
+            state: TableState::default(),
             constraint,
         }
     }
@@ -165,14 +248,19 @@ where
     fn up(&mut self) -> NavigationResult {
         if let Some(selected) = self.state.selected() {
             if selected == 0 {
+                self.state.select(None);
                 NavigationResult::Previous
             } else {
                 self.state.select_previous();
                 NavigationResult::Ok
             }
         } else {
-            self.state.select_previous();
-            NavigationResult::Ok
+            if self.items.is_empty() {
+                NavigationResult::Previous
+            } else {
+                self.state.select_previous();
+                NavigationResult::Ok
+            }
         }
     }
 
@@ -180,13 +268,18 @@ where
         self.state.select_next();
         if let Some(selected) = self.state.selected() {
             if selected >= self.items.len() {
+                self.state.select(None);
                 NavigationResult::Next
             } else {
                 NavigationResult::Ok
             }
         } else {
-            self.state.select_next();
-            NavigationResult::Ok
+            if self.items.is_empty() {
+                NavigationResult::Next
+            } else {
+                self.state.select_next();
+                NavigationResult::Ok
+            }
         }
     }
 
@@ -211,9 +304,7 @@ where
                 HighlightSpacing::Always
             } else {
                 HighlightSpacing::Never
-            })
-            .yellow()
-            .block(Block::bordered());
+            });
         StatefulWidget::render(list, area.clone(), buf, &mut self.state);
     }
 
@@ -222,26 +313,15 @@ where
     }
 }
 
-trait Item: Into<AppEvent> + Into<Row<'static>> + Clone {}
-
-pub fn make_test_menu() -> Box<dyn Menu> {
+pub fn make_test_menu() -> LinkedMenu {
     let widths = [Constraint::Min(4), Constraint::Length(5)];
-    let items = vec![DebugItem, DebugItem, DebugItem];
-    Box::new(TableMenu::new(items, widths, Constraint::Fill(100)))
+    let items = vec![AppEvent::Up, AppEvent::Down, AppEvent::Down, AppEvent::Quit];
+    LinkedMenu::new(Box::new(MenuFrame::new([
+        Box::new(TableMenu::new(items, widths, Constraint::Fill(100))),
+        Box::new(TableMenu::new(
+            vec![AppEvent::Quit],
+            widths,
+            Constraint::Length(1),
+        )),
+    ])))
 }
-
-#[derive(Clone)]
-struct DebugItem;
-
-impl Into<AppEvent> for DebugItem {
-    fn into(self) -> AppEvent {
-        AppEvent::Debug
-    }
-}
-
-impl Into<Row<'static>> for DebugItem {
-    fn into(self) -> Row<'static> {
-        Row::new([Cell::new(Text::from("asdg")), Cell::new(Text::from(":3"))])
-    }
-}
-impl Item for DebugItem {}

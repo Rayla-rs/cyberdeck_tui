@@ -1,4 +1,4 @@
-use std::{fmt::Debug, ops::Deref};
+use std::fmt::Debug;
 
 use hhmmss::Hhmmss;
 use rodio::{OutputStream, Sink};
@@ -48,26 +48,27 @@ impl AudioPlayer {
         drop(guard);
     }
 
-    pub fn tick(&mut self) {
-        // change so that we move current
+    pub fn tick(&mut self) -> color_eyre::Result<()> {
         if !self.sink.is_paused() {
             match self.current.as_ref() {
                 Some(current) => {
                     if self.sink.empty() && self.has_next() {
                         self.history.push(current.clone());
-                        self.play();
+                        self.play()?;
                     }
                 }
                 None => {
-                    self.play();
+                    self.play()?;
                 }
             }
         }
+        Ok(())
     }
 
-    pub fn play(&mut self) {
-        self.next();
+    pub fn play(&mut self) -> color_eyre::Result<()> {
+        self.next()?;
         self.sink.play();
+        Ok(())
     }
 
     fn has_next(&self) -> bool {

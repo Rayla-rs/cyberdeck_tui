@@ -1,12 +1,22 @@
 use bluer::{AdapterEvent, Address, DiscoveryFilter, Session};
 use color_eyre::eyre::OptionExt;
 use futures::{FutureExt, StreamExt, pin_mut};
-use ratatui::crossterm::event::Event as CrosstermEvent;
-use std::time::Duration;
+use ratatui::{
+    crossterm::event::Event as CrosstermEvent,
+    widgets::{Cell, Row},
+};
+use std::{
+    fmt::{Debug, Write},
+    sync::Arc,
+    time::Duration,
+};
 use tokio::sync::mpsc;
 use tracing::trace;
 
-use crate::blt_client::Device;
+use crate::{
+    blt_client::Device,
+    menus::{Item, LinkedMenu},
+};
 
 /// The frequency at which tick events are emitted.
 const TICK_FPS: f64 = 30.0;
@@ -32,7 +42,7 @@ pub enum Event {
 }
 
 /// Application events.
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub enum AppEvent {
     /// Move up
     Up,
@@ -42,9 +52,45 @@ pub enum AppEvent {
     Enter,
     /// Quit the application.
     Quit,
+    /// Remove leaf linked menu
+    Pop,
+    /// Add leaf linked menu
+    Push(Arc<dyn Fn() -> LinkedMenu + Sync + Send>),
     //
     Debug,
 }
+
+impl Debug for AppEvent {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_fmt(format_args!(
+            "AppEvent::{}",
+            match self {
+                Self::Up => "Up",
+                Self::Down => "Down",
+                Self::Enter => "Enter",
+                Self::Quit => "Quit",
+                Self::Pop => "Pop",
+                Self::Push(_) => "Push(..)",
+                Self::Debug => "Debug",
+            }
+        ))
+    }
+}
+
+impl Into<Row<'static>> for AppEvent {
+    fn into(self) -> Row<'static> {
+        Row::new([Cell::new(match self {
+            Self::Up => "Up",
+            Self::Down => "Down",
+            Self::Enter => "Enter",
+            Self::Quit => "Quit",
+            Self::Pop => "Pop",
+            _ => todo!(),
+        })])
+    }
+}
+
+impl Item for AppEvent {}
 
 #[derive(Clone, Debug)]
 pub enum BltEvent {

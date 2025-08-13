@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use crate::blt_client::Device;
 use crate::event::BltEvent;
-use crate::menus::{self, Menu};
+use crate::menus::{self, LinkedMenu, Menu};
 use crate::trace_dbg;
 use crate::{
     audio_player::AudioPlayer,
@@ -14,12 +14,6 @@ use ratatui::{
     DefaultTerminal,
     crossterm::event::{KeyCode, KeyEvent, KeyModifiers},
 };
-
-#[derive(PartialEq, Eq)]
-pub enum Focus {
-    MachineMenu,
-    QuickMenu,
-}
 
 pub struct AppState {
     pub player: AudioPlayer,
@@ -38,7 +32,7 @@ impl AppState {
 /// Application.
 pub struct App {
     pub state: AppState,
-    pub menu: Box<dyn Menu>,
+    pub menu: LinkedMenu,
     /// Is the application running?
     pub running: bool,
     /// Event handler.
@@ -61,7 +55,7 @@ impl App {
         while self.running {
             terminal.draw(|frame| frame.render_widget(&mut self, frame.area()))?;
             match self.events.next().await? {
-                Event::Tick => self.tick(), // change to async
+                Event::Tick => self.tick()?,
                 Event::Crossterm(event) => match event {
                     crossterm::event::Event::Key(key_event) => self.handle_key_events(key_event)?,
                     _ => {}
@@ -73,6 +67,12 @@ impl App {
                         self.enter()?;
                     }
                     AppEvent::Quit => self.quit(),
+                    AppEvent::Pop => {
+                        self.menu.pop();
+                    }
+                    AppEvent::Push(func) => {
+                        self.menu.push(func());
+                    }
                     AppEvent::Debug => {
                         trace_dbg!("Debuged");
                     }
@@ -107,10 +107,9 @@ impl App {
     ///
     /// The tick event is where you can update the state of your application with any logic that
     /// needs to be updated at a fixed frame rate. E.g. polling a server, updating an animation.
-    pub fn tick(&mut self) {
-        self.state.player.tick();
-
-        // validate cursor location
+    pub fn tick(&mut self) -> color_eyre::Result<()> {
+        self.state.player.tick()?;
+        self.menu.tick(&self.state)
     }
 
     /// Set running to false to quit the application.
