@@ -12,7 +12,7 @@ futures = "0.3.31"
 ratatui = "0.29.0"
 tokio = { version = "1.40.0", features = ["full"] }
 color-eyre = "0.6.3"
-whoami = "1.6.0"
+whoami = "1.6.1"
 chrono = "0.4.41"
 rodio = "0.21.1"
 bluer = { version = "0.17.4", features = ["full"] }
