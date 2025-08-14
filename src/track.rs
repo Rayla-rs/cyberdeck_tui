@@ -1,5 +1,10 @@
 use audiotags::Tag;
 use color_eyre::eyre::Context;
+use hhmmss::Hhmmss;
+use ratatui::{
+    text::Text,
+    widgets::{Cell, Row},
+};
 // use hhmmss::Hhmmss;
 use rodio::Decoder;
 
@@ -10,6 +15,8 @@ use std::{
     path::PathBuf,
     time::Duration,
 };
+
+use crate::{event::AppEvent, menus::Item};
 
 // make into decoder for track and on cp do not rebuild
 
@@ -47,7 +54,30 @@ impl TryFrom<PathBuf> for Track {
             path: value.clone(),
             title: tag.title().unwrap_or_default().to_string(),
             artist: tag.artist().unwrap_or_default().to_string(),
-            total_duration: Duration::from_secs(tag.duration().unwrap_or_default() as u64),
+            total_duration: match tag.duration() {
+                Some(dur) => Duration::from_secs_f64(dur),
+                None => mp3_duration::from_path(value).unwrap_or_default(),
+            },
         })
     }
 }
+
+impl Into<AppEvent> for Track {
+    fn into(self) -> AppEvent {
+        AppEvent::Play(vec![self])
+    }
+}
+impl<'a> Into<Row<'a>> for Track {
+    fn into(self) -> Row<'a> {
+        [
+            self.title.clone(),
+            self.artist.clone(),
+            self.total_duration.hhmmss(),
+        ]
+        .iter()
+        .map(|elem| Cell::from(Text::from(format!("{elem}"))))
+        .collect()
+    }
+}
+
+impl Item for Track {}

@@ -1,13 +1,20 @@
-use std::{fmt::Display, path::PathBuf, time::Duration};
+use std::{fmt::Display, path::PathBuf, sync::Arc, time::Duration};
 
 use hhmmss::Hhmmss;
 use ratatui::{
+    layout::Constraint,
     text::Text,
     widgets::{Cell, Row},
 };
+use rodio::Source;
 use serde::Deserialize;
 
-use crate::{trace_dbg, track::Track};
+use crate::{
+    event::AppEvent,
+    menus::{Item, LinkedMenu, MenuFrame, TableMenu, TextMenu},
+    trace_dbg,
+    track::Track,
+};
 
 #[derive(Debug, Clone)]
 pub struct Playlist {
@@ -23,28 +30,48 @@ impl Display for Playlist {
 }
 
 impl Playlist {
-    pub fn data(&self) -> [String; 3] {
+    pub fn get_duration(&self) -> Duration {
+        self.tracks
+            .iter()
+            .fold(Duration::default(), |acc, elem| acc + elem.total_duration)
+    }
+}
+
+impl Item for Playlist {}
+
+impl<'a> Into<Row<'a>> for Playlist {
+    fn into(self) -> Row<'a> {
         [
             self.title.clone(),
             self.tracks.len().to_string(),
             self.get_duration().hhmmss(),
         ]
-    }
-
-    pub fn get_duration(&self) -> Duration {
-        self.tracks
-            .iter()
-            .fold(Duration::default(), |acc, elem| acc + elem.total_duration)
-            .into()
+        .iter()
+        .map(|elem| Cell::from(Text::from(format!("{elem}"))))
+        .collect()
     }
 }
 
-impl<'a> Into<Row<'a>> for &'a Playlist {
-    fn into(self) -> Row<'a> {
-        self.data()
-            .iter()
-            .map(|elem| Cell::from(Text::from(format!("{elem}"))))
-            .collect()
+pub fn playlist_menu(playlist: Playlist) -> LinkedMenu {
+    LinkedMenu::new(Box::new(MenuFrame::new([
+        Box::new(TextMenu(Text::from("-==Tracks==-").centered())),
+        Box::new(TableMenu::new(
+            playlist.tracks,
+            [
+                Constraint::Min(5),
+                Constraint::Length(6),
+                Constraint::Length(8),
+            ],
+        )),
+        Box::new(TextMenu(Text::from("-==Options==-").centered())),
+        Box::new(TableMenu::new(vec![AppEvent::Pop], [Constraint::Fill(100)])),
+    ])))
+}
+
+/// Incomplete here for testing only
+impl Into<AppEvent> for Playlist {
+    fn into(self) -> AppEvent {
+        AppEvent::Push(Arc::new(move || playlist_menu(self.clone())))
     }
 }
 

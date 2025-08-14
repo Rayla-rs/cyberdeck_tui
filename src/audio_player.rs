@@ -37,11 +37,11 @@ impl AudioPlayer {
         }
     }
 
-    pub fn queue_playlist(&mut self, playlist: Playlist) {
+    pub fn queue_playlist(&mut self, tracks: Vec<Track>) {
         let span = span!(Level::TRACE, "queue playlist");
         let guard = span.enter();
 
-        for track in playlist.tracks.into_iter().rev() {
+        for track in tracks.into_iter().rev() {
             self.push_track(track);
         }
 

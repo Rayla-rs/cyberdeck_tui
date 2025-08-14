@@ -16,6 +16,8 @@ use tracing::trace;
 use crate::{
     blt_client::Device,
     menus::{Item, LinkedMenu},
+    playlist::Playlist,
+    track::Track,
 };
 
 /// The frequency at which tick events are emitted.
@@ -55,7 +57,9 @@ pub enum AppEvent {
     /// Remove leaf linked menu
     Pop,
     /// Add leaf linked menu
-    Push(Arc<dyn Fn() -> LinkedMenu + Sync + Send>),
+    Push(Arc<dyn Fn() -> LinkedMenu + Send + Sync>),
+    /// Play a playlist
+    Play(Vec<Track>),
     //
     Debug,
 }
@@ -71,6 +75,7 @@ impl Debug for AppEvent {
                 Self::Quit => "Quit",
                 Self::Pop => "Pop",
                 Self::Push(_) => "Push(..)",
+                Self::Play(_) => "Play(..)",
                 Self::Debug => "Debug",
             }
         ))
@@ -85,6 +90,7 @@ impl Into<Row<'static>> for AppEvent {
             Self::Enter => "Enter",
             Self::Quit => "Quit",
             Self::Pop => "Pop",
+            Self::Push(_) => "Push",
             _ => todo!(),
         })])
     }

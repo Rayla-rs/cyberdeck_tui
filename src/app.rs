@@ -73,6 +73,9 @@ impl App {
                     AppEvent::Push(func) => {
                         self.menu.push(func());
                     }
+                    AppEvent::Play(playlist) => {
+                        self.state.player.queue_playlist(playlist);
+                    }
                     AppEvent::Debug => {
                         trace_dbg!("Debuged");
                     }

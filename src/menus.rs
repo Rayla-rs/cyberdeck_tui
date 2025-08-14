@@ -1,19 +1,22 @@
-use std::fmt::{Debug, Write};
+use std::{
+    fmt::{Debug, Write},
+    sync::Arc,
+};
 
 use color_eyre::eyre::OptionExt;
 use ratatui::{
     buffer::Buffer,
     layout::{Constraint, Layout, Rect},
-    widgets::{HighlightSpacing, Row, StatefulWidget, Table, TableState, Widget},
+    text::Text,
+    widgets::{Cell, HighlightSpacing, Row, StatefulWidget, Table, TableState, Widget},
 };
-
 // TODO:
 // Stacking menu
 // Async menu
 // Unbounded events
 // Info Menu (Not items just paragraph or data)
 
-use crate::{app::AppState, event::AppEvent};
+use crate::{CONFIG, app::AppState, event::AppEvent, playlist::Playlist};
 
 pub enum NavigationResult {
     Ok,
@@ -142,7 +145,7 @@ impl<const N: usize> MenuFrame<N>
 where
     Assert<{ N > 0 }>: IsTrue,
 {
-    fn new(menus: [Box<dyn Menu>; N]) -> Self {
+    pub fn new(menus: [Box<dyn Menu>; N]) -> Self {
         let mut frame = Self { menus, selected: 0 };
         let _ = frame.down();
         frame
@@ -219,7 +222,6 @@ where
 {
     items: Vec<T>,
     widths: C,
-    constraint: Constraint,
     state: TableState,
 }
 
@@ -229,12 +231,11 @@ where
     C: IntoIterator + Clone,
     C::Item: Into<Constraint>,
 {
-    pub fn new(items: Vec<T>, widths: C, constraint: Constraint) -> Self {
+    pub fn new(items: Vec<T>, widths: C) -> Self {
         Self {
             items,
             widths,
             state: TableState::default(),
-            constraint,
         }
     }
 }
@@ -309,19 +310,86 @@ where
     }
 
     fn constraint(&self) -> Constraint {
-        self.constraint
+        Constraint::Length(self.items.len() as u16)
     }
 }
 
 pub fn make_test_menu() -> LinkedMenu {
     let widths = [Constraint::Min(4), Constraint::Length(5)];
-    let items = vec![AppEvent::Up, AppEvent::Down, AppEvent::Down, AppEvent::Quit];
+    let items = vec![
+        AppEvent::Up,
+        AppEvent::Down,
+        AppEvent::Down,
+        AppEvent::Quit,
+        AppEvent::Push(Arc::new(|| playlist_collection_menu())),
+    ];
     LinkedMenu::new(Box::new(MenuFrame::new([
-        Box::new(TableMenu::new(items, widths, Constraint::Fill(100))),
-        Box::new(TableMenu::new(
-            vec![AppEvent::Quit],
-            widths,
-            Constraint::Length(1),
-        )),
+        Box::new(TableMenu::new(items, widths)),
+        Box::new(PlaylistItem.to_menu()),
+        Box::new(TableMenu::new(vec![AppEvent::Quit], widths)),
+        Box::new(TextMenu(Text::from("Main"))),
     ])))
+}
+
+#[derive(Clone)]
+pub struct PlaylistItem;
+
+impl PlaylistItem {
+    pub fn to_menu(self) -> TableMenu<PlaylistItem, [Constraint; 1]> {
+        TableMenu::new(vec![self], [Constraint::Fill(100)])
+    }
+}
+
+impl Into<AppEvent> for PlaylistItem {
+    fn into(self) -> AppEvent {
+        AppEvent::Push(Arc::new(|| playlist_collection_menu()))
+    }
+}
+
+impl<'a> Into<Row<'a>> for PlaylistItem {
+    fn into(self) -> Row<'a> {
+        Row::new([Cell::new("PlaylistMenu")])
+    }
+}
+
+impl Item for PlaylistItem {}
+
+pub fn playlist_collection_menu() -> LinkedMenu {
+    LinkedMenu::new(Box::new(MenuFrame::new([
+        Box::new(TextMenu(Text::from("-==Playlists==-").centered())),
+        Box::new(TableMenu::new(
+            CONFIG.load_playlists().collect(),
+            [
+                Constraint::Min(5),
+                Constraint::Length(6),
+                Constraint::Length(8),
+            ],
+        )),
+        Box::new(TextMenu(Text::from("-==Options==-").centered())),
+        Box::new(TableMenu::new(vec![AppEvent::Pop], [Constraint::Fill(100)])),
+    ])))
+}
+
+pub struct TextMenu(pub Text<'static>);
+
+impl Menu for TextMenu {
+    fn up(&mut self) -> NavigationResult {
+        NavigationResult::Previous
+    }
+
+    fn down(&mut self) -> NavigationResult {
+        NavigationResult::Next
+    }
+
+    fn enter(&mut self) -> color_eyre::Result<Option<AppEvent>> {
+        Ok(None)
+    }
+
+    fn render(&mut self, area: Rect, buf: &mut Buffer, _focused: bool) {
+        self.0.clone().render(area, buf);
+    }
+
+    fn constraint(&self) -> Constraint {
+        Constraint::Length(self.0.lines.len() as u16)
+    }
 }

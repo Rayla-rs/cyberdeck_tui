@@ -770,6 +770,7 @@ dependencies = [
  "lazy_static",
  "linux-embedded-hal",
  "mfrc522",
+ "mp3-duration",
  "ratatui",
  "rodio",
  "serde",
@@ -1739,6 +1740,15 @@ dependencies = [
  "log",
  "wasi 0.11.1+wasi-snapshot-preview1",
  "windows-sys 0.59.0",
+]
+
+[[package]]
+name = "mp3-duration"
+version = "0.1.10"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "348bdc7300502f0801e5b57c448815713cd843b744ef9bda252a2698fdf90a0f"
+dependencies = [
+ "thiserror 1.0.69",
 ]
 
 [[package]]
