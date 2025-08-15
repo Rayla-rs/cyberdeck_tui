@@ -11,13 +11,6 @@ pub struct Config {
 impl Config {
     /// Create new config from users config!
     pub fn new() -> color_eyre::Result<Self> {
-        // let mut path = dirs::config_dir()
-        //     .ok_or("User config directory not found!")?
-        //     .join("cyberdeck_tui");
-        // if !std::fs::exists(path.clone())? {
-        //     std::fs::create_dir(path);
-        // }
-
         Ok(toml::from_str(&std::fs::read_to_string(
             dirs::config_dir()
                 .ok_or_eyre("User config directory not found!")?

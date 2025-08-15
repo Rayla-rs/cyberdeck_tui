@@ -1,8 +1,9 @@
 use std::collections::HashMap;
+use std::ops::Not;
 
-use crate::blt_client::Device;
+use crate::device::Device;
 use crate::event::BltEvent;
-use crate::menus::{self, LinkedMenu, Menu};
+use crate::menus::{self, LinkedMenu, Menu, TableMenu};
 use crate::trace_dbg;
 use crate::{
     audio_player::AudioPlayer,
@@ -10,6 +11,8 @@ use crate::{
 };
 use bluer::Address;
 use bluetui::app::AppResult;
+use ratatui::layout::Constraint;
+use ratatui::widgets::{Cell, Row};
 use ratatui::{
     DefaultTerminal,
     crossterm::event::{KeyCode, KeyEvent, KeyModifiers},
@@ -27,6 +30,10 @@ impl AppState {
             devices: HashMap::default(),
         }
     }
+
+    pub fn cloned_devices(&self) -> Vec<Device> {
+        self.devices.clone().into_values().collect()
+    }
 }
 
 /// Application.
@@ -41,17 +48,17 @@ pub struct App {
 
 impl App {
     /// Constructs a new instance of [`App`].
-    pub async fn new() -> color_eyre::Result<Self> {
-        Ok(Self {
+    pub async fn new() -> Self {
+        Self {
             state: AppState::new(),
             running: true,
             events: EventHandler::new(),
             menu: menus::make_test_menu(),
-        })
+        }
     }
 
     /// Run the application's main loop.
-    pub async fn run(mut self, mut terminal: DefaultTerminal) -> AppResult<()> {
+    pub async fn run(mut self, terminal: &mut DefaultTerminal) -> color_eyre::Result<()> {
         while self.running {
             terminal.draw(|frame| frame.render_widget(&mut self, frame.area()))?;
             match self.events.next().await? {
@@ -75,6 +82,12 @@ impl App {
                     }
                     AppEvent::Play(playlist) => {
                         self.state.player.queue_playlist(playlist);
+                    }
+                    AppEvent::Resume => {
+                        self.state.player.resume();
+                    }
+                    AppEvent::Pause => {
+                        self.state.player.pause();
                     }
                     AppEvent::Debug => {
                         trace_dbg!("Debuged");
@@ -141,4 +154,21 @@ impl App {
     fn remove_device(&mut self, address: Address) {
         self.state.devices.remove(&address);
     }
+}
+
+pub fn quick_menu() -> Box<dyn Menu> {
+    Box::new(
+        TableMenu::new(vec![], [Constraint::Fill(100)])
+            .with_header(Row::new([Cell::new("Options")]))
+            .with_ticker(|items, app_state| {
+                items.clear();
+                if app_state.player.is_paused() && !app_state.player.empty() {
+                    items.push(AppEvent::Resume);
+                }
+                if !app_state.player.is_paused() && !app_state.player.empty() {
+                    items.push(AppEvent::Pause);
+                }
+                Ok(())
+            }),
+    )
 }

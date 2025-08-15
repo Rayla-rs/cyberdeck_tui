@@ -7,17 +7,15 @@ use lazy_static::lazy_static;
 use crate::app::App;
 
 pub mod app;
-// pub mod app_actions;
 mod audio_player;
-pub mod blt_client;
 pub mod config;
+pub mod device;
 pub mod event;
+pub mod fatal;
 pub mod logging;
-// mod machine;
 pub mod menus;
 mod playlist;
 mod track;
-// mod track_widget;
 pub mod ui;
 
 pub type Error = Box<dyn std::error::Error>;
@@ -30,12 +28,17 @@ lazy_static! {
 }
 
 #[tokio::main]
-async fn main() -> AppResult<()> {
+async fn main() -> color_eyre::Result<()> {
     color_eyre::install()?;
     logging::initialize_logging()?;
     trace_dbg!("Logging Initialized");
-    let terminal = ratatui::init();
-    let result = App::new().await?.run(terminal).await;
+    let mut terminal = ratatui::init();
+    if let Err(report) = App::new().await.run(&mut terminal).await {
+        crate::fatal::FatalWidget(report).run(&mut terminal).await?;
+    }
+    // check env var for reboot on exit
     ratatui::restore();
-    result
+    Ok(())
 }
+
+// TODO -> dyn Options updated by app_state

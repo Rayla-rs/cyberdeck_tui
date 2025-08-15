@@ -4,7 +4,7 @@ use hhmmss::Hhmmss;
 use rodio::{OutputStream, Sink};
 use tracing::{Level, instrument, span, trace};
 
-use crate::{playlist::Playlist, track::Track};
+use crate::track::Track;
 
 pub struct AudioPlayer {
     stream_handle: OutputStream,
@@ -67,8 +67,12 @@ impl AudioPlayer {
 
     pub fn play(&mut self) -> color_eyre::Result<()> {
         self.next()?;
-        self.sink.play();
+        self.resume();
         Ok(())
+    }
+
+    pub fn resume(&mut self) {
+        self.sink.play();
     }
 
     fn has_next(&self) -> bool {
@@ -130,6 +134,14 @@ impl AudioPlayer {
                 None => String::from("NAN"),
             }
         )
+    }
+
+    pub fn empty(&self) -> bool {
+        self.sink.empty()
+    }
+
+    pub fn is_paused(&self) -> bool {
+        self.sink.is_paused()
     }
 }
 

@@ -1,12 +1,10 @@
-use std::{
-    fmt::{Debug, Write},
-    sync::Arc,
-};
+use std::{fmt::Debug, sync::Arc};
 
 use color_eyre::eyre::OptionExt;
 use ratatui::{
     buffer::Buffer,
     layout::{Constraint, Layout, Rect},
+    style::Stylize,
     text::Text,
     widgets::{Cell, HighlightSpacing, Row, StatefulWidget, Table, TableState, Widget},
 };
@@ -16,7 +14,12 @@ use ratatui::{
 // Unbounded events
 // Info Menu (Not items just paragraph or data)
 
-use crate::{CONFIG, app::AppState, event::AppEvent, playlist::Playlist};
+use crate::{
+    CONFIG,
+    app::{AppState, quick_menu},
+    device::BluetoothItem,
+    event::AppEvent,
+};
 
 pub enum NavigationResult {
     Ok,
@@ -122,6 +125,13 @@ impl Menu for LinkedMenu {
     fn constraint(&self) -> Constraint {
         Constraint::Fill(100)
     }
+
+    fn tick(&mut self, app_state: &AppState) -> color_eyre::Result<()> {
+        match self.next.as_mut() {
+            Some(next) => next.tick(app_state),
+            None => self.current.tick(app_state),
+        }
+    }
 }
 
 //TODO move to util.rs
@@ -210,6 +220,13 @@ where
     fn constraint(&self) -> Constraint {
         Constraint::Percentage(100)
     }
+
+    fn tick(&mut self, app_state: &AppState) -> color_eyre::Result<()> {
+        for menu in self.menus.as_mut() {
+            menu.tick(app_state)?;
+        }
+        Ok(())
+    }
 }
 
 pub trait Item: Into<AppEvent> + Into<Row<'static>> + Clone {}
@@ -222,6 +239,8 @@ where
 {
     items: Vec<T>,
     widths: C,
+    header: Option<Row<'static>>,
+    ticker: Option<fn(&mut Vec<T>, &AppState) -> color_eyre::Result<()>>,
     state: TableState,
 }
 
@@ -235,8 +254,23 @@ where
         Self {
             items,
             widths,
+            header: None,
+            ticker: None,
             state: TableState::default(),
         }
+    }
+
+    pub fn with_header(mut self, header: Row<'static>) -> Self {
+        self.header = Some(header);
+        self
+    }
+
+    pub fn with_ticker(
+        mut self,
+        ticker: fn(&mut Vec<T>, &AppState) -> color_eyre::Result<()>,
+    ) -> Self {
+        self.ticker = Some(ticker);
+        self
     }
 }
 
@@ -299,35 +333,48 @@ where
     fn render(&mut self, area: Rect, buf: &mut Buffer, focused: bool) {
         ratatui::widgets::Clear::default().render(area, buf);
 
-        let list = Table::new(self.items.clone().into_iter(), self.widths.clone())
-            .highlight_symbol(">")
-            .highlight_spacing(if focused {
-                HighlightSpacing::Always
+        StatefulWidget::render(
+            Table::new(self.items.clone().into_iter(), self.widths.clone())
+                .highlight_symbol(">".yellow())
+                .highlight_spacing(HighlightSpacing::Always),
+            if let Some(header) = self.header.as_ref() {
+                let layout =
+                    Layout::vertical([Constraint::Length(1), Constraint::Fill(100)]).split(area);
+                Widget::render(
+                    Table::default()
+                        .widths(self.widths.clone())
+                        .header(header.clone()),
+                    layout[0],
+                    buf,
+                );
+                layout[1]
             } else {
-                HighlightSpacing::Never
-            });
-        StatefulWidget::render(list, area.clone(), buf, &mut self.state);
+                area
+            },
+            buf,
+            &mut self.state,
+        );
     }
 
     fn constraint(&self) -> Constraint {
-        Constraint::Length(self.items.len() as u16)
+        Constraint::Length(self.items.len() as u16 + if self.header.is_some() { 1 } else { 0 })
+    }
+
+    fn tick(&mut self, app_state: &AppState) -> color_eyre::Result<()> {
+        match self.ticker.as_mut() {
+            Some(ticker) => ticker(&mut self.items, app_state),
+            None => Ok(()),
+        }
     }
 }
 
 pub fn make_test_menu() -> LinkedMenu {
     let widths = [Constraint::Min(4), Constraint::Length(5)];
-    let items = vec![
-        AppEvent::Up,
-        AppEvent::Down,
-        AppEvent::Down,
-        AppEvent::Quit,
-        AppEvent::Push(Arc::new(|| playlist_collection_menu())),
-    ];
     LinkedMenu::new(Box::new(MenuFrame::new([
-        Box::new(TableMenu::new(items, widths)),
         Box::new(PlaylistItem.to_menu()),
+        Box::new(BluetoothItem.to_menu()),
         Box::new(TableMenu::new(vec![AppEvent::Quit], widths)),
-        Box::new(TextMenu(Text::from("Main"))),
+        quick_menu(),
     ])))
 }
 
@@ -357,14 +404,21 @@ impl Item for PlaylistItem {}
 pub fn playlist_collection_menu() -> LinkedMenu {
     LinkedMenu::new(Box::new(MenuFrame::new([
         Box::new(TextMenu(Text::from("-==Playlists==-").centered())),
-        Box::new(TableMenu::new(
-            CONFIG.load_playlists().collect(),
-            [
-                Constraint::Min(5),
-                Constraint::Length(6),
-                Constraint::Length(8),
-            ],
-        )),
+        Box::new(
+            TableMenu::new(
+                CONFIG.load_playlists().collect(),
+                [
+                    Constraint::Min(5),
+                    Constraint::Length(6),
+                    Constraint::Length(8),
+                ],
+            )
+            .with_header(Row::new([
+                Cell::new("Title"),
+                Cell::new("Tracks"),
+                Cell::new("Duration"),
+            ])),
+        ),
         Box::new(TextMenu(Text::from("-==Options==-").centered())),
         Box::new(TableMenu::new(vec![AppEvent::Pop], [Constraint::Fill(100)])),
     ])))

@@ -5,18 +5,13 @@ use ratatui::{
     crossterm::event::Event as CrosstermEvent,
     widgets::{Cell, Row},
 };
-use std::{
-    fmt::{Debug, Write},
-    sync::Arc,
-    time::Duration,
-};
+use std::{fmt::Debug, sync::Arc, time::Duration};
 use tokio::sync::mpsc;
 use tracing::trace;
 
 use crate::{
-    blt_client::Device,
+    device::Device,
     menus::{Item, LinkedMenu},
-    playlist::Playlist,
     track::Track,
 };
 
@@ -60,6 +55,10 @@ pub enum AppEvent {
     Push(Arc<dyn Fn() -> LinkedMenu + Send + Sync>),
     /// Play a playlist
     Play(Vec<Track>),
+    /// Resume track
+    Resume,
+    /// Pause track
+    Pause,
     //
     Debug,
 }
@@ -76,6 +75,8 @@ impl Debug for AppEvent {
                 Self::Pop => "Pop",
                 Self::Push(_) => "Push(..)",
                 Self::Play(_) => "Play(..)",
+                Self::Resume => "Resume",
+                Self::Pause => "Pause",
                 Self::Debug => "Debug",
             }
         ))
@@ -91,6 +92,8 @@ impl Into<Row<'static>> for AppEvent {
             Self::Quit => "Quit",
             Self::Pop => "Pop",
             Self::Push(_) => "Push",
+            Self::Resume => "Resume",
+            Self::Pause => "Pause",
             _ => todo!(),
         })])
     }
