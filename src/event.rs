@@ -59,7 +59,15 @@ pub enum AppEvent {
     Resume,
     /// Pause track
     Pause,
-    //
+    /// Connect with Device
+    Connect(Device),
+    /// Disconect Device
+    Disconnect(Device),
+    /// Trust Device
+    Trust(Device),
+    /// Untrust Device
+    Untrust(Device),
+
     Debug,
 }
 
@@ -68,16 +76,20 @@ impl Debug for AppEvent {
         f.write_fmt(format_args!(
             "AppEvent::{}",
             match self {
-                Self::Up => "Up",
-                Self::Down => "Down",
-                Self::Enter => "Enter",
-                Self::Quit => "Quit",
-                Self::Pop => "Pop",
-                Self::Push(_) => "Push(..)",
-                Self::Play(_) => "Play(..)",
-                Self::Resume => "Resume",
-                Self::Pause => "Pause",
-                Self::Debug => "Debug",
+                Self::Up => String::from("Up"),
+                Self::Down => String::from("Down"),
+                Self::Enter => String::from("Enter"),
+                Self::Quit => String::from("Quit"),
+                Self::Pop => String::from("Pop"),
+                Self::Push(_) => String::from("Push(..)"),
+                Self::Play(_) => String::from("Play(..)"),
+                Self::Resume => String::from("Resume"),
+                Self::Pause => String::from("Pause"),
+                Self::Connect(device) => format!("Connect({})", device.address.to_string()),
+                Self::Trust(device) => format!("Trust({})", device.address.to_string()),
+                Self::Untrust(device) => format!("Untrust({})", device.address.to_string()),
+                Self::Disconnect(device) => format!("Disconnect({})", device.address.to_string()),
+                Self::Debug => String::from("Debug"),
             }
         ))
     }
@@ -94,6 +106,10 @@ impl Into<Row<'static>> for AppEvent {
             Self::Push(_) => "Push",
             Self::Resume => "Resume",
             Self::Pause => "Pause",
+            Self::Connect(_) => "Connect",
+            Self::Trust(_) => "Trust",
+            Self::Untrust(_) => "Untrust",
+            Self::Disconnect(_) => "Disconnect",
             _ => todo!(),
         })])
     }

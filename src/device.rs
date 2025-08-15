@@ -6,6 +6,7 @@ use ratatui::layout::Constraint;
 use ratatui::text::Text;
 use ratatui::widgets::{Cell, Row};
 
+use crate::app::quick_menu;
 use crate::event::AppEvent;
 use crate::menus::{Item, LinkedMenu, MenuFrame, TableMenu};
 
@@ -21,6 +22,7 @@ pub struct Device {
     pub address: Address,
     pub alias: String,
     pub is_paired: bool,
+    pub is_connected: bool,
     pub is_trusted: bool,
     pub battery_percentage: Option<u8>,
 }
@@ -30,11 +32,12 @@ impl Device {
         self.bt_device.pair().await
     }
 
-    fn data(&self) -> [String; 4] {
+    fn data(&self) -> [String; 5] {
         [
             self.alias.clone(),
             self.address.to_string(),
             format!("{}", self.is_paired),
+            format!("{}", self.is_connected),
             format!("{}", self.is_trusted),
         ]
     }
@@ -43,6 +46,7 @@ impl Device {
         let bt_device = adapter.device(address)?;
         let alias = bt_device.alias().await?;
         let is_paired = bt_device.is_paired().await?;
+        let is_connected = bt_device.is_connected().await?;
         let is_trusted = bt_device.is_trusted().await?;
         let battery_percentage = bt_device.battery_percentage().await?;
 
@@ -52,6 +56,7 @@ impl Device {
             alias,
             is_paired,
             is_trusted,
+            is_connected,
             battery_percentage,
         })
     }
@@ -61,7 +66,24 @@ impl Item for Device {}
 
 impl Into<AppEvent> for Device {
     fn into(self) -> AppEvent {
-        AppEvent::Debug
+        AppEvent::Push(Arc::new(move || {
+            let mut options = Vec::new();
+            options.push(if self.is_connected {
+                AppEvent::Disconnect(self.clone())
+            } else {
+                AppEvent::Connect(self.clone())
+            });
+            options.push(if self.is_trusted {
+                AppEvent::Untrust(self.clone())
+            } else {
+                AppEvent::Trust(self.clone())
+            });
+
+            LinkedMenu::new(Box::new(MenuFrame::new([
+                Box::new(TableMenu::new(options, [Constraint::Fill(100)])),
+                quick_menu(),
+            ])))
+        }))
     }
 }
 
@@ -105,15 +127,17 @@ pub fn create_blt_menu() -> LinkedMenu {
                 [
                     Constraint::Min(5),
                     Constraint::Length(17),
+                    Constraint::Length(6),
                     Constraint::Length(9),
-                    Constraint::Length(10),
+                    Constraint::Length(7),
                 ],
             )
             .with_header(Row::new([
                 Cell::new("Alias"),
                 Cell::new("Adress"),
-                Cell::new("Is Paired"),
-                Cell::new("Is Trusted"),
+                Cell::new("Paired"),
+                Cell::new("Connected"),
+                Cell::new("Trusted"),
             ]))
             .with_ticker(|items, app_state| {
                 items.clear();
@@ -122,6 +146,6 @@ pub fn create_blt_menu() -> LinkedMenu {
                 Ok(())
             }),
         ),
-        Box::new(TableMenu::new(vec![AppEvent::Pop], [Constraint::Fill(100)])),
+        quick_menu(),
     ])))
 }

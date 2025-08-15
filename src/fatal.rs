@@ -1,8 +1,4 @@
-use std::process::Termination;
-
 use chrono::Local;
-use color_eyre::owo_colors::OwoColorize;
-use crossterm::terminal;
 use futures::StreamExt;
 use ratatui::{
     DefaultTerminal,

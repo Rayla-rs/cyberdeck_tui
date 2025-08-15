@@ -10,6 +10,7 @@ use rodio::Source;
 use serde::Deserialize;
 
 use crate::{
+    app::quick_menu,
     event::AppEvent,
     menus::{Item, LinkedMenu, MenuFrame, TableMenu, TextMenu},
     trace_dbg,
@@ -54,17 +55,22 @@ impl<'a> Into<Row<'a>> for Playlist {
 
 pub fn playlist_menu(playlist: Playlist) -> LinkedMenu {
     LinkedMenu::new(Box::new(MenuFrame::new([
-        Box::new(TextMenu(Text::from("-==Tracks==-").centered())),
-        Box::new(TableMenu::new(
-            playlist.tracks,
-            [
-                Constraint::Min(5),
-                Constraint::Length(6),
-                Constraint::Length(8),
-            ],
-        )),
-        Box::new(TextMenu(Text::from("-==Options==-").centered())),
-        Box::new(TableMenu::new(vec![AppEvent::Pop], [Constraint::Fill(100)])),
+        Box::new(
+            TableMenu::new(
+                playlist.tracks,
+                [
+                    Constraint::Min(5),
+                    Constraint::Length(6),
+                    Constraint::Length(8),
+                ],
+            )
+            .with_header(Row::new([
+                Cell::new("Title"),
+                Cell::new("Artist"),
+                Cell::new("Duration"),
+            ])),
+        ),
+        quick_menu(),
     ])))
 }
 

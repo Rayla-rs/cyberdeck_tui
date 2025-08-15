@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::ops::Not;
 
 use crate::device::Device;
 use crate::event::BltEvent;
@@ -10,7 +9,6 @@ use crate::{
     event::{AppEvent, Event, EventHandler},
 };
 use bluer::Address;
-use bluetui::app::AppResult;
 use ratatui::layout::Constraint;
 use ratatui::widgets::{Cell, Row};
 use ratatui::{
@@ -59,6 +57,7 @@ impl App {
 
     /// Run the application's main loop.
     pub async fn run(mut self, terminal: &mut DefaultTerminal) -> color_eyre::Result<()> {
+        self.tick()?;
         while self.running {
             terminal.draw(|frame| frame.render_widget(&mut self, frame.area()))?;
             match self.events.next().await? {
@@ -75,7 +74,11 @@ impl App {
                     }
                     AppEvent::Quit => self.quit(),
                     AppEvent::Pop => {
-                        self.menu.pop();
+                        if self.menu.is_leaf() {
+                            self.running = false
+                        } else {
+                            self.menu.pop()
+                        };
                     }
                     AppEvent::Push(func) => {
                         self.menu.push(func());
@@ -88,6 +91,27 @@ impl App {
                     }
                     AppEvent::Pause => {
                         self.state.player.pause();
+                    }
+                    AppEvent::Connect(device) => {
+                        tokio::spawn(async move {
+                            let _ = device.pair().await;
+                            let _ = device.bt_device.connect().await;
+                        });
+                    }
+                    AppEvent::Disconnect(device) => {
+                        tokio::spawn(async move {
+                            let _ = device.bt_device.disconnect().await;
+                        });
+                    }
+                    AppEvent::Trust(device) => {
+                        tokio::spawn(async move {
+                            let _ = device.bt_device.set_trusted(true).await;
+                        });
+                    }
+                    AppEvent::Untrust(device) => {
+                        tokio::spawn(async move {
+                            let _ = device.bt_device.set_trusted(false).await;
+                        });
                     }
                     AppEvent::Debug => {
                         trace_dbg!("Debuged");
@@ -158,16 +182,21 @@ impl App {
 
 pub fn quick_menu() -> Box<dyn Menu> {
     Box::new(
-        TableMenu::new(vec![], [Constraint::Fill(100)])
+        TableMenu::new(vec![AppEvent::Pop], [Constraint::Fill(100)])
             .with_header(Row::new([Cell::new("Options")]))
             .with_ticker(|items, app_state| {
                 items.clear();
-                if app_state.player.is_paused() && !app_state.player.empty() {
-                    items.push(AppEvent::Resume);
+
+                // Pause and unpause items
+                if !app_state.player.empty() {
+                    if app_state.player.is_paused() {
+                        items.push(AppEvent::Resume);
+                    } else {
+                        items.push(AppEvent::Pause);
+                    }
                 }
-                if !app_state.player.is_paused() && !app_state.player.empty() {
-                    items.push(AppEvent::Pause);
-                }
+
+                items.push(AppEvent::Pop);
                 Ok(())
             }),
     )

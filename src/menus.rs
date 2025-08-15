@@ -66,7 +66,7 @@ impl LinkedMenu {
         }
     }
 
-    fn is_leaf(&self) -> bool {
+    pub fn is_leaf(&self) -> bool {
         self.next.is_none()
     }
 
@@ -335,7 +335,7 @@ where
 
         StatefulWidget::render(
             Table::new(self.items.clone().into_iter(), self.widths.clone())
-                .highlight_symbol(">".yellow())
+                .highlight_symbol(">>".yellow())
                 .highlight_spacing(HighlightSpacing::Always),
             if let Some(header) = self.header.as_ref() {
                 let layout =
@@ -369,11 +369,17 @@ where
 }
 
 pub fn make_test_menu() -> LinkedMenu {
-    let widths = [Constraint::Min(4), Constraint::Length(5)];
     LinkedMenu::new(Box::new(MenuFrame::new([
+        Box::new(TextMenu(
+            Text::from(
+                r"Nokota V1
+Copyright (c) Rayla-rs <wassrayla@gmail.com>
+            ",
+            )
+            .centered(),
+        )),
         Box::new(PlaylistItem.to_menu()),
         Box::new(BluetoothItem.to_menu()),
-        Box::new(TableMenu::new(vec![AppEvent::Quit], widths)),
         quick_menu(),
     ])))
 }
@@ -403,7 +409,6 @@ impl Item for PlaylistItem {}
 
 pub fn playlist_collection_menu() -> LinkedMenu {
     LinkedMenu::new(Box::new(MenuFrame::new([
-        Box::new(TextMenu(Text::from("-==Playlists==-").centered())),
         Box::new(
             TableMenu::new(
                 CONFIG.load_playlists().collect(),
@@ -419,8 +424,7 @@ pub fn playlist_collection_menu() -> LinkedMenu {
                 Cell::new("Duration"),
             ])),
         ),
-        Box::new(TextMenu(Text::from("-==Options==-").centered())),
-        Box::new(TableMenu::new(vec![AppEvent::Pop], [Constraint::Fill(100)])),
+        quick_menu(),
     ])))
 }
 
