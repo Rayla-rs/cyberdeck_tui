@@ -104,13 +104,14 @@ impl Into<Row<'static>> for AppEvent {
             Self::Quit => "Quit",
             Self::Pop => "Pop",
             Self::Push(_) => "Push",
+            Self::Play(_) => "Play",
             Self::Resume => "Resume",
             Self::Pause => "Pause",
             Self::Connect(_) => "Connect",
             Self::Trust(_) => "Trust",
             Self::Untrust(_) => "Untrust",
             Self::Disconnect(_) => "Disconnect",
-            _ => todo!(),
+            Self::Debug => "Debug",
         })])
     }
 }

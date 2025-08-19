@@ -67,6 +67,7 @@ impl Into<AppEvent> for Track {
         AppEvent::Play(vec![self])
     }
 }
+
 impl<'a> Into<Row<'a>> for Track {
     fn into(self) -> Row<'a> {
         [

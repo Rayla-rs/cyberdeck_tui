@@ -57,6 +57,13 @@ pub fn playlist_menu(playlist: Playlist) -> LinkedMenu {
     LinkedMenu::new(Box::new(MenuFrame::new([
         Box::new(
             TableMenu::new(
+                vec![AppEvent::Play(playlist.tracks.clone())],
+                [Constraint::Fill(100)],
+            )
+            .with_header(Row::new([Cell::new(playlist.title.clone())])),
+        ),
+        Box::new(
+            TableMenu::new(
                 playlist.tracks,
                 [
                     Constraint::Min(5),

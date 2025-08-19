@@ -16,7 +16,7 @@ use ratatui::{
 
 use crate::{
     CONFIG,
-    app::{AppState, quick_menu},
+    app::{AppState, AudioWidgetMenu, quick_menu},
     device::BluetoothItem,
     event::AppEvent,
 };
@@ -53,17 +53,21 @@ impl Debug for LinkedMenu {
 
 impl LinkedMenu {
     pub fn new(current: Box<dyn Menu>) -> Self {
-        Self {
+        let mut menu = Self {
             current,
             next: None,
-        }
+        };
+        menu.down();
+        menu
     }
 
     pub fn new_with_next(current: Box<dyn Menu>, next: LinkedMenu) -> Self {
-        Self {
+        let mut menu = Self {
             current,
             next: Some(Box::new(next)),
-        }
+        };
+        menu.down();
+        menu
     }
 
     pub fn is_leaf(&self) -> bool {
@@ -156,9 +160,7 @@ where
     Assert<{ N > 0 }>: IsTrue,
 {
     pub fn new(menus: [Box<dyn Menu>; N]) -> Self {
-        let mut frame = Self { menus, selected: 0 };
-        let _ = frame.down();
-        frame
+        Self { menus, selected: 0 }
     }
 }
 
@@ -381,6 +383,7 @@ Copyright (c) Rayla-rs <wassrayla@gmail.com>
         Box::new(PlaylistItem.to_menu()),
         Box::new(BluetoothItem.to_menu()),
         quick_menu(),
+        Box::new(AudioWidgetMenu::default()),
     ])))
 }
 

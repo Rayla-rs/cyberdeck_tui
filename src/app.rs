@@ -2,15 +2,16 @@ use std::collections::HashMap;
 
 use crate::device::Device;
 use crate::event::BltEvent;
-use crate::menus::{self, LinkedMenu, Menu, TableMenu};
+use crate::menus::{self, LinkedMenu, Menu, MenuFrame, TableMenu};
 use crate::trace_dbg;
 use crate::{
     audio_player::AudioPlayer,
     event::{AppEvent, Event, EventHandler},
 };
 use bluer::Address;
-use ratatui::layout::Constraint;
-use ratatui::widgets::{Cell, Row};
+use ratatui::layout::{Constraint, Layout};
+use ratatui::style::{Style, Stylize};
+use ratatui::widgets::{Block, Cell, Gauge, Row, Widget};
 use ratatui::{
     DefaultTerminal,
     crossterm::event::{KeyCode, KeyEvent, KeyModifiers},
@@ -200,4 +201,54 @@ pub fn quick_menu() -> Box<dyn Menu> {
                 Ok(())
             }),
     )
+}
+
+#[derive(Default)]
+pub struct AudioWidgetMenu {
+    progress: f64,
+    title: String,
+    progress_label: String,
+    render: bool,
+}
+
+impl Menu for AudioWidgetMenu {
+    fn up(&mut self) -> menus::NavigationResult {
+        menus::NavigationResult::Previous
+    }
+    fn down(&mut self) -> menus::NavigationResult {
+        menus::NavigationResult::Next
+    }
+    fn enter(&mut self) -> color_eyre::Result<Option<AppEvent>> {
+        Ok(None)
+    }
+    fn render(
+        &mut self,
+        area: ratatui::prelude::Rect,
+        buf: &mut ratatui::prelude::Buffer,
+        focused: bool,
+    ) {
+        Gauge::default()
+            .ratio(self.progress)
+            .label(self.progress_label.clone())
+            .gauge_style(Style::new().white().on_black())
+            .block(Block::bordered().title_top(self.title.clone()))
+            .render(
+                Layout::vertical([Constraint::Fill(100), Constraint::Length(3)]).split(area)[1],
+                buf,
+            );
+    }
+    fn constraint(&self) -> Constraint {
+        Constraint::Fill(100)
+    }
+    fn tick(&mut self, app_state: &AppState) -> color_eyre::Result<()> {
+        match app_state.player.get_current() {
+            Some(track) => {
+                self.title = track.title.clone();
+                self.progress_label = app_state.player.get_progress_label();
+                self.progress = app_state.player.get_progress();
+            }
+            None => self.render = false,
+        };
+        Ok(())
+    }
 }

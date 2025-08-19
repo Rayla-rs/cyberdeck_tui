@@ -1,8 +1,14 @@
-{ pkgs ? import <nixpkgs> {} }:
+# { pkgs ? import <nixpkgs> {} }:
+
+{ pkgs ? import <nixpkgs> {  }
+}:
 
 pkgs.mkShell {
+
+  
   # Packages needed at runtime by the software you are developing/building
   buildInputs = with pkgs; [
+    # docker
     bluez
     dbus # If your software interacts with D-Bus
     # Other runtime dependencies

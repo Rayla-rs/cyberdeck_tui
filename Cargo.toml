@@ -6,6 +6,9 @@ authors = ["Rayla-rs <wassrayla@gmail.com>"]
 license = "MIT"
 edition = "2024"
 
+[target.armv7-unknown-linux-gnueabihf]
+linker = "arm-linux-gnueabihf-gcc" # Or the appropriate linker for your setup
+
 [dependencies]
 crossterm = { version = "0.28.1", features = ["event-stream"] }
 futures = "0.3.31"
@@ -30,9 +33,9 @@ strum = "0.27.2"
 strum_macros = "0.27.2"
 hhmmss = "0.1.0"
 futures-util = "0.3.31"
-mfrc522 = { version = "0.8.0", features = ["eh02", "std"] }
-hal = "0.10.0"
-linux-embedded-hal = "0.4.0"
-embedded-hal = "1.0.0"
-embedded-hal-bus = "0.3.0"
+# mfrc522 = { version = "0.8.0", features = ["eh02", "std"] }
+# hal = "0.10.0"
+# linux-embedded-hal = "0.4.0"
+# embedded-hal = "1.0.0"
+# embedded-hal-bus = "0.3.0"
 mp3-duration = "0.1.10"

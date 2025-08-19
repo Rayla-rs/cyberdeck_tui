@@ -150,3 +150,5 @@ impl<'a> AudioPlayer {
         self.current.as_ref()
     }
 }
+
+// TODO make a history/queue menu
