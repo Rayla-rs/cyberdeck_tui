@@ -1,14 +1,17 @@
 use std::collections::HashMap;
+use std::sync::Arc;
 
+use crate::blt_service::BltService;
 use crate::device::Device;
 use crate::event::BltEvent;
-use crate::menus::{self, LinkedMenu, Menu, MenuFrame, TableMenu};
+use crate::menus::{self, LinkedMenu, Menu, TableMenu};
 use crate::trace_dbg;
 use crate::{
     audio_player::AudioPlayer,
     event::{AppEvent, Event, EventHandler},
 };
 use bluer::Address;
+use futures::lock::Mutex;
 use ratatui::layout::{Constraint, Layout};
 use ratatui::style::{Style, Stylize};
 use ratatui::widgets::{Block, Cell, Clear, Gauge, Row, Widget};
@@ -20,13 +23,15 @@ use ratatui::{
 pub struct AppState {
     pub player: AudioPlayer,
     pub devices: HashMap<Address, Device>,
+    pub blt_service: Arc<Mutex<BltService>>,
 }
 
 impl AppState {
-    fn new() -> Self {
+    fn new(blt_service: Arc<Mutex<BltService>>) -> Self {
         Self {
             player: AudioPlayer::new(),
             devices: HashMap::default(),
+            blt_service,
         }
     }
 
@@ -47,11 +52,11 @@ pub struct App {
 
 impl App {
     /// Constructs a new instance of [`App`].
-    pub async fn new() -> Self {
+    pub async fn new(blt_service: Arc<Mutex<BltService>>) -> Self {
         Self {
-            state: AppState::new(),
+            state: AppState::new(blt_service.clone()),
             running: true,
-            events: EventHandler::new(),
+            events: EventHandler::new(blt_service),
             menu: menus::make_test_menu(),
         }
     }
@@ -61,74 +66,99 @@ impl App {
         self.tick()?;
         while self.running {
             terminal.draw(|frame| frame.render_widget(&mut self, frame.area()))?;
-            match self.events.next().await? {
-                Event::Tick => self.tick()?,
-                Event::Crossterm(event) => match event {
-                    crossterm::event::Event::Key(key_event) => self.handle_key_events(key_event)?,
-                    _ => {}
-                },
-                Event::App(app_event) => match app_event {
-                    AppEvent::Up => self.up(),
-                    AppEvent::Down => self.down(),
-                    AppEvent::Enter => {
-                        self.enter()?;
-                    }
-                    AppEvent::Quit => self.quit(),
-                    AppEvent::Pop => {
-                        if self.menu.is_leaf() {
-                            self.running = false
-                        } else {
-                            self.menu.pop()
-                        };
-                    }
-                    AppEvent::Push(func) => {
-                        self.menu.push(func());
-                    }
-                    AppEvent::Play(playlist) => {
-                        self.state.player.queue_playlist(playlist);
-                    }
-                    AppEvent::Resume => {
-                        self.state.player.resume();
-                    }
-                    AppEvent::Pause => {
-                        self.state.player.pause();
-                    }
-                    AppEvent::Skip => {
-                        self.state.player.skip();
-                    }
-                    AppEvent::Connect(device) => {
-                        tokio::spawn(async move {
-                            let _ = device.pair().await;
-                            let _ = device.bt_device.connect().await;
-                        });
-                    }
-                    AppEvent::Disconnect(device) => {
-                        tokio::spawn(async move {
-                            let _ = device.bt_device.disconnect().await;
-                        });
-                    }
-                    AppEvent::Trust(device) => {
-                        tokio::spawn(async move {
-                            let _ = device.bt_device.set_trusted(true).await;
-                        });
-                    }
-                    AppEvent::Untrust(device) => {
-                        tokio::spawn(async move {
-                            let _ = device.bt_device.set_trusted(false).await;
-                        });
-                    }
-                    AppEvent::Debug => {
-                        trace_dbg!("Debuged");
-                    }
-                },
-                Event::Blt(device_event) => match device_event {
-                    BltEvent::Add(dev) => {
-                        self.add_device(dev);
-                    }
-                    BltEvent::Remove(addr) => self.remove_device(addr),
-                },
-            }
+            self.handle_event().await?;
         }
+        Ok(())
+    }
+
+    async fn handle_event(&mut self) -> color_eyre::Result<()> {
+        match self.events.next().await? {
+            Event::Tick => self.tick()?,
+            Event::Crossterm(event) => match event {
+                crossterm::event::Event::Key(key_event) => self.handle_key_events(key_event)?,
+                _ => {}
+            },
+            Event::App(app_event) => match app_event {
+                AppEvent::Up => self.up(),
+                AppEvent::Down => self.down(),
+                AppEvent::Enter => {
+                    self.enter()?;
+                }
+                AppEvent::Quit => self.quit(),
+                AppEvent::Pop => {
+                    if self.menu.is_leaf() {
+                        self.running = false
+                    } else {
+                        self.menu.pop();
+                        self.events.send(AppEvent::DisableDiscovery);
+                    };
+                }
+                AppEvent::Push(func) => {
+                    let menu = func();
+                    self.events.send(AppEvent::EnableDiscovery);
+                    if let Some(event) = menu.pushed() {
+                        self.events.send(event);
+                    }
+
+                    self.menu.push(func());
+                }
+                AppEvent::Play(playlist) => {
+                    self.state.player.queue_playlist(playlist);
+                }
+                AppEvent::Resume => {
+                    self.state.player.resume();
+                }
+                AppEvent::Pause => {
+                    self.state.player.pause();
+                }
+                AppEvent::Skip => {
+                    self.state.player.skip();
+                }
+                AppEvent::Connect(device) => {
+                    tokio::spawn(async move {
+                        let _ = device.pair().await;
+                        let _ = device.bt_device.connect().await;
+                    });
+                }
+                AppEvent::Disconnect(device) => {
+                    tokio::spawn(async move {
+                        let _ = device.bt_device.disconnect().await;
+                    });
+                }
+                AppEvent::Trust(device) => {
+                    tokio::spawn(async move {
+                        let _ = device.bt_device.set_trusted(true).await;
+                    });
+                }
+                AppEvent::Untrust(device) => {
+                    tokio::spawn(async move {
+                        let _ = device.bt_device.set_trusted(false).await;
+                    });
+                }
+                AppEvent::Debug => {
+                    trace_dbg!("Debuged");
+                }
+                AppEvent::EnableDiscovery => {
+                    let service = self.state.blt_service.clone();
+                    tokio::spawn(
+                        async move { service.clone().lock().await.enable().await.unwrap() },
+                    );
+                }
+                AppEvent::DisableDiscovery => {
+                    let service = self.state.blt_service.clone();
+                    tokio::spawn(
+                        async move { service.clone().lock().await.disable().await.unwrap() },
+                    );
+                }
+            },
+            Event::Blt(device_event) => match device_event {
+                BltEvent::Add(dev) => {
+                    self.add_device(dev);
+                }
+                BltEvent::Remove(addr) => self.remove_device(addr),
+            },
+        }
+
         Ok(())
     }
 

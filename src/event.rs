@@ -1,8 +1,10 @@
 use bluer::{Adapter, AdapterEvent, Address, DiscoveryFilter, Session};
 use color_eyre::eyre::OptionExt;
 use futures::{
-    FutureExt, StreamExt, pin_mut,
-    stream::{LocalBoxStream, Skip},
+    FutureExt, StreamExt,
+    lock::Mutex,
+    pin_mut,
+    stream::{BoxStream, LocalBoxStream, Skip},
 };
 use ratatui::{
     crossterm::event::Event as CrosstermEvent,
@@ -13,8 +15,10 @@ use tokio::sync::mpsc;
 use tracing::trace;
 
 use crate::{
+    blt_service::BltService,
     device::Device,
     menus::{Item, LinkedMenu},
+    trace_dbg,
     track::Track,
 };
 
@@ -72,6 +76,10 @@ pub enum AppEvent {
     Trust(Device),
     /// Untrust Device
     Untrust(Device),
+    /// Enable Bluetooth discovery
+    EnableDiscovery,
+    /// Disable Bluetooth discovery
+    DisableDiscovery,
 
     Debug,
 }
@@ -95,6 +103,8 @@ impl Debug for AppEvent {
                 Self::Trust(device) => format!("Trust({})", device.address.to_string()),
                 Self::Untrust(device) => format!("Untrust({})", device.address.to_string()),
                 Self::Disconnect(device) => format!("Disconnect({})", device.address.to_string()),
+                Self::EnableDiscovery => String::from("EnableDiscovery"),
+                Self::DisableDiscovery => String::from("DisableDiscovery"),
                 Self::Debug => String::from("Debug"),
             }
         ))
@@ -118,6 +128,8 @@ impl Into<Row<'static>> for AppEvent {
             Self::Trust(_) => "Trust",
             Self::Untrust(_) => "Untrust",
             Self::Disconnect(_) => "Disconnect",
+            Self::EnableDiscovery => "EnableDiscovery",
+            Self::DisableDiscovery => "DisableDiscovery",
             Self::Debug => "Debug",
         })])
     }
@@ -142,10 +154,10 @@ pub struct EventHandler {
 
 impl EventHandler {
     /// Constructs a new instance of [`EventHandler`] and spawns a new thread to handle events.
-    pub fn new() -> Self {
+    pub fn new(blt_service: Arc<Mutex<BltService>>) -> Self {
         let (sender, receiver) = mpsc::unbounded_channel();
         let actor = EventTask::new(sender.clone());
-        tokio::spawn(async { actor.run().await });
+        tokio::spawn(async { actor.run(blt_service).await });
         Self { sender, receiver }
     }
 
@@ -191,9 +203,7 @@ impl EventTask {
     /// Runs the event thread.
     ///
     /// This function emits tick events at a fixed rate and polls for crossterm events in between.
-    async fn run(self) -> color_eyre::Result<()> {
-        let service = BltService::new().await?;
-
+    async fn run(self, blt_service: Arc<Mutex<BltService>>) -> color_eyre::Result<()> {
         let tick_rate = Duration::from_secs_f64(1.0 / TICK_FPS);
         let mut reader = crossterm::event::EventStream::new();
         let mut tick = tokio::time::interval(tick_rate);
@@ -201,21 +211,60 @@ impl EventTask {
             let tick_delay = tick.tick();
             let crossterm_event = reader.next().fuse();
 
-            tokio::select! {
-              _ = self.sender.closed() => {
-                  break;
-              }
-              _ = tick_delay => {
-                  self.send(Event::Tick);
-              }
-              Some(Ok(evt)) = crossterm_event => {
-                  self.send(Event::Crossterm(evt));
-              }
-              Some(device_event) = device_event => {
+            let mut blt_service = blt_service.lock().await;
 
-              }
-            };
+            match blt_service.stream.as_mut() {
+                Some(stream) => {
+                    trace_dbg!("Has stream");
+                    tokio::select! {
+                        _ = self.sender.closed() => {
+                            break;
+                        }
+                        _ = tick_delay => {
+                            self.send(Event::Tick);
+                        }
+                        Some(Ok(evt)) = crossterm_event => {
+                            self.send(Event::Crossterm(evt));
+                        }
+                        Some(device_event) = stream.next().fuse() => {
+                            match device_event {
+                                AdapterEvent::DeviceAdded(address) => {
+                                    match Device::new(&blt_service.adapter, address).await {
+                                        Ok(device) => self.send(Event::Blt(BltEvent::Add(device))),
+                                        Err(err) => {
+                                            trace!("Err: {}", err);
+                                        }
+                                    };
+                                }
+                                AdapterEvent::DeviceRemoved(address) => {
+                                    self.send(Event::Blt(BltEvent::Remove(address)));
+                                }
+                                _ => {
+                                    // device updated
+                                }
+                            };
+
+                        }
+                    };
+                }
+
+                None => {
+                    trace_dbg!("No stream");
+                    tokio::select! {
+                        _ = self.sender.closed() => {
+                            break;
+                        }
+                        _ = tick_delay => {
+                            self.send(Event::Tick);
+                        }
+                        Some(Ok(evt)) = crossterm_event => {
+                            self.send(Event::Crossterm(evt));
+                        }
+                    };
+                }
+            }
         }
+
         Ok(())
     }
 
@@ -224,70 +273,5 @@ impl EventTask {
         // Ignores the result because shutting down the app drops the receiver, which causes the send
         // operation to fail. This is expected behavior and should not panic.
         let _ = self.sender.send(event);
-    }
-
-    fn handle_blt_event(&mut self, event: AdapterEvent) {
-        match event {
-            AdapterEvent::DeviceAdded(address) => {
-                match Device::new(&adapter, address).await {
-                    Ok(device) => self.send(Event::Blt(BltEvent::Add(device))),
-                    Err(err) => {
-                        trace!("Err: {}", err);
-                    }
-                };
-            }
-            AdapterEvent::DeviceRemoved(address) => {
-                self.send(Event::Blt(BltEvent::Remove(address)));
-            }
-            _ => {
-                // device updated
-            }
-        };
-    }
-}
-
-struct BltService {
-    adapter: Adapter,
-    stream: Option<LocalBoxStream<'static, AdapterEvent>>,
-}
-
-impl BltService {
-    async fn new() -> color_eyre::Result<Self> {
-        let session = Session::new().await?;
-        let adapter = session.default_adapter().await?;
-
-        // Discovery filter
-        let filter = DiscoveryFilter {
-            transport: bluer::DiscoveryTransport::Auto,
-            ..DiscoveryFilter::default()
-        };
-        adapter.set_discovery_filter(filter).await?;
-
-        Ok(Self {
-            adapter,
-            stream: None,
-        })
-    }
-
-    pub async fn set_state(&mut self, enable: bool) -> color_eyre::Result<()> {
-        let active = self.stream.is_none();
-
-        match (enable, active) {
-            (true, false) => {
-                self.stream = Some(self.adapter.discover_devices().await?.boxed_local())
-            }
-            (false, true) => {
-                self.stream = None;
-            }
-            _ => {}
-        }
-        Ok(())
-    }
-
-    async fn next(&mut self) -> () {
-        match self.stream {
-            Some(stream) => stream.next().fuse(),
-            None => (async || None)().fuse(),
-        }
     }
 }

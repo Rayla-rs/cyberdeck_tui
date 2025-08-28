@@ -5,10 +5,11 @@ use config::Config;
 use lazy_static::lazy_static;
 use ratatui::{DefaultTerminal, widgets::RatatuiLogo};
 
-use crate::app::App;
+use crate::{app::App, blt_service::BltService};
 
 pub mod app;
 mod audio_player;
+pub mod blt_service;
 pub mod config;
 pub mod device;
 pub mod event;
@@ -35,7 +36,9 @@ async fn main() -> color_eyre::Result<()> {
     trace_dbg!("Logging Initialized");
     let mut terminal = ratatui::init();
     render_splash_screen(&mut terminal)?;
-    if let Err(report) = App::new().await.run(&mut terminal).await {
+    let blt_service = BltService::init().await?;
+    blt_service.lock().await.enable().await?;
+    if let Err(report) = App::new(blt_service).await.run(&mut terminal).await {
         crate::fatal::FatalWidget(report).run(&mut terminal).await?;
     }
     // check env var for reboot on exit

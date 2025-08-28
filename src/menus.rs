@@ -38,6 +38,14 @@ pub trait Menu {
     fn tick(&mut self, _app_state: &AppState) -> color_eyre::Result<()> {
         Ok(())
     }
+
+    fn pushed(&self) -> Option<AppEvent> {
+        None
+    }
+
+    fn poped(&self) -> Option<AppEvent> {
+        None
+    }
 }
 
 pub struct LinkedMenu {
@@ -243,6 +251,8 @@ where
     widths: C,
     header: Option<Row<'static>>,
     ticker: Option<fn(&mut Vec<T>, &AppState) -> color_eyre::Result<()>>,
+    on_pushed: Option<fn() -> AppEvent>,
+    on_poped: Option<fn() -> AppEvent>,
     state: TableState,
 }
 
@@ -258,6 +268,8 @@ where
             widths,
             header: None,
             ticker: None,
+            on_pushed: None,
+            on_poped: None,
             state: TableState::default(),
         }
     }
@@ -272,6 +284,16 @@ where
         ticker: fn(&mut Vec<T>, &AppState) -> color_eyre::Result<()>,
     ) -> Self {
         self.ticker = Some(ticker);
+        self
+    }
+
+    pub fn with_on_poped(mut self, on_poped: fn() -> AppEvent) -> Self {
+        self.on_poped = Some(on_poped);
+        self
+    }
+
+    pub fn with_on_pushed(mut self, on_pushed: fn() -> AppEvent) -> Self {
+        self.on_pushed = Some(on_pushed);
         self
     }
 }
@@ -367,6 +389,14 @@ where
             Some(ticker) => ticker(&mut self.items, app_state),
             None => Ok(()),
         }
+    }
+
+    fn pushed(&self) -> Option<AppEvent> {
+        self.on_pushed.map(|func| func())
+    }
+
+    fn poped(&self) -> Option<AppEvent> {
+        self.on_poped.map(|func| func())
     }
 }
 

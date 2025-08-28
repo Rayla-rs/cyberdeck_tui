@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use bluer::{Adapter, Session};
 use bluer::{Address, Device as BTDevice};
+use bluetui::event::Event;
 use ratatui::layout::Constraint;
 use ratatui::text::Text;
 use ratatui::widgets::{Cell, Row};
@@ -144,7 +145,9 @@ pub fn create_blt_menu() -> LinkedMenu {
                 let mut devices = app_state.cloned_devices();
                 items.append(&mut devices);
                 Ok(())
-            }),
+            })
+            .with_on_pushed(|| AppEvent::EnableDiscovery)
+            .with_on_poped(|| AppEvent::DisableDiscovery),
         ),
         quick_menu(),
     ])))
