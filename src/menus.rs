@@ -414,7 +414,7 @@ pub fn playlist_collection_menu() -> LinkedMenu {
     LinkedMenu::new(Box::new(MenuFrame::new([
         Box::new(
             TableMenu::new(
-                CONFIG.load_playlists().collect(),
+                CONFIG.playlists.clone(),
                 [
                     Constraint::Min(5),
                     Constraint::Length(6),

@@ -1,6 +1,9 @@
-use bluer::{AdapterEvent, Address, DiscoveryFilter, Session};
+use bluer::{Adapter, AdapterEvent, Address, DiscoveryFilter, Session};
 use color_eyre::eyre::OptionExt;
-use futures::{FutureExt, StreamExt, pin_mut};
+use futures::{
+    FutureExt, StreamExt, pin_mut,
+    stream::{LocalBoxStream, Skip},
+};
 use ratatui::{
     crossterm::event::Event as CrosstermEvent,
     widgets::{Cell, Row},
@@ -16,7 +19,7 @@ use crate::{
 };
 
 /// The frequency at which tick events are emitted.
-const TICK_FPS: f64 = 30.0;
+const TICK_FPS: f64 = 15.0;
 
 /// Representation of all possible events.
 #[derive(Clone, Debug)]
@@ -59,6 +62,8 @@ pub enum AppEvent {
     Resume,
     /// Pause track
     Pause,
+    /// Skip track
+    Skip,
     /// Connect with Device
     Connect(Device),
     /// Disconect Device
@@ -85,6 +90,7 @@ impl Debug for AppEvent {
                 Self::Play(_) => String::from("Play(..)"),
                 Self::Resume => String::from("Resume"),
                 Self::Pause => String::from("Pause"),
+                Self::Skip => String::from("Skip"),
                 Self::Connect(device) => format!("Connect({})", device.address.to_string()),
                 Self::Trust(device) => format!("Trust({})", device.address.to_string()),
                 Self::Untrust(device) => format!("Untrust({})", device.address.to_string()),
@@ -107,6 +113,7 @@ impl Into<Row<'static>> for AppEvent {
             Self::Play(_) => "Play",
             Self::Resume => "Resume",
             Self::Pause => "Pause",
+            Self::Skip => "Skip",
             Self::Connect(_) => "Connect",
             Self::Trust(_) => "Trust",
             Self::Untrust(_) => "Untrust",
@@ -185,20 +192,7 @@ impl EventTask {
     ///
     /// This function emits tick events at a fixed rate and polls for crossterm events in between.
     async fn run(self) -> color_eyre::Result<()> {
-        // Start bluetooth
-        let session = Session::new().await?;
-        let adapter = session.default_adapter().await?;
-
-        // Discovery filter
-        let filter = DiscoveryFilter {
-            transport: bluer::DiscoveryTransport::Auto,
-            ..DiscoveryFilter::default()
-        };
-        adapter.set_discovery_filter(filter).await?;
-
-        // Create device event stream
-        let device_events = adapter.discover_devices().await?;
-        pin_mut!(device_events);
+        let service = BltService::new().await?;
 
         let tick_rate = Duration::from_secs_f64(1.0 / TICK_FPS);
         let mut reader = crossterm::event::EventStream::new();
@@ -206,6 +200,7 @@ impl EventTask {
         loop {
             let tick_delay = tick.tick();
             let crossterm_event = reader.next().fuse();
+
             tokio::select! {
               _ = self.sender.closed() => {
                   break;
@@ -216,23 +211,8 @@ impl EventTask {
               Some(Ok(evt)) = crossterm_event => {
                   self.send(Event::Crossterm(evt));
               }
-              Some(device_event) = device_events.next() => {
-                  match device_event {
-                      AdapterEvent::DeviceAdded(address) => {
-                          match Device::new(&adapter, address).await {
-                          Ok(device) => self.send(Event::Blt(BltEvent::Add(device))),
-                          Err(err) => {
-                              trace!("Err: {}", err);
-                          }
-                      };
-                      },
-                      AdapterEvent::DeviceRemoved(address) => {
-                          self.send(Event::Blt(BltEvent::Remove(address)));
-                      },
-                      _ => {
-                          // device updated
-                      },
-                  };
+              Some(device_event) = device_event => {
+
               }
             };
         }
@@ -244,5 +224,70 @@ impl EventTask {
         // Ignores the result because shutting down the app drops the receiver, which causes the send
         // operation to fail. This is expected behavior and should not panic.
         let _ = self.sender.send(event);
+    }
+
+    fn handle_blt_event(&mut self, event: AdapterEvent) {
+        match event {
+            AdapterEvent::DeviceAdded(address) => {
+                match Device::new(&adapter, address).await {
+                    Ok(device) => self.send(Event::Blt(BltEvent::Add(device))),
+                    Err(err) => {
+                        trace!("Err: {}", err);
+                    }
+                };
+            }
+            AdapterEvent::DeviceRemoved(address) => {
+                self.send(Event::Blt(BltEvent::Remove(address)));
+            }
+            _ => {
+                // device updated
+            }
+        };
+    }
+}
+
+struct BltService {
+    adapter: Adapter,
+    stream: Option<LocalBoxStream<'static, AdapterEvent>>,
+}
+
+impl BltService {
+    async fn new() -> color_eyre::Result<Self> {
+        let session = Session::new().await?;
+        let adapter = session.default_adapter().await?;
+
+        // Discovery filter
+        let filter = DiscoveryFilter {
+            transport: bluer::DiscoveryTransport::Auto,
+            ..DiscoveryFilter::default()
+        };
+        adapter.set_discovery_filter(filter).await?;
+
+        Ok(Self {
+            adapter,
+            stream: None,
+        })
+    }
+
+    pub async fn set_state(&mut self, enable: bool) -> color_eyre::Result<()> {
+        let active = self.stream.is_none();
+
+        match (enable, active) {
+            (true, false) => {
+                self.stream = Some(self.adapter.discover_devices().await?.boxed_local())
+            }
+            (false, true) => {
+                self.stream = None;
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+
+    async fn next(&mut self) -> () {
+        match self.stream {
+            Some(stream) => stream.next().fuse(),
+            None => (async || None)().fuse(),
+        }
     }
 }

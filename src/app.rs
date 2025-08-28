@@ -11,7 +11,7 @@ use crate::{
 use bluer::Address;
 use ratatui::layout::{Constraint, Layout};
 use ratatui::style::{Style, Stylize};
-use ratatui::widgets::{Block, Cell, Gauge, Row, Widget};
+use ratatui::widgets::{Block, Cell, Clear, Gauge, Row, Widget};
 use ratatui::{
     DefaultTerminal,
     crossterm::event::{KeyCode, KeyEvent, KeyModifiers},
@@ -92,6 +92,9 @@ impl App {
                     }
                     AppEvent::Pause => {
                         self.state.player.pause();
+                    }
+                    AppEvent::Skip => {
+                        self.state.player.skip();
                     }
                     AppEvent::Connect(device) => {
                         tokio::spawn(async move {
@@ -188,13 +191,15 @@ pub fn quick_menu() -> Box<dyn Menu> {
             .with_ticker(|items, app_state| {
                 items.clear();
 
-                // Pause and unpause items
                 if !app_state.player.empty() {
+                    // Pause and unpause items
                     if app_state.player.is_paused() {
                         items.push(AppEvent::Resume);
                     } else {
                         items.push(AppEvent::Pause);
                     }
+
+                    items.push(AppEvent::Skip);
                 }
 
                 items.push(AppEvent::Pop);
@@ -227,15 +232,19 @@ impl Menu for AudioWidgetMenu {
         buf: &mut ratatui::prelude::Buffer,
         focused: bool,
     ) {
-        Gauge::default()
-            .ratio(self.progress)
-            .label(self.progress_label.clone())
-            .gauge_style(Style::new().white().on_black())
-            .block(Block::bordered().title_top(self.title.clone()))
-            .render(
-                Layout::vertical([Constraint::Fill(100), Constraint::Length(3)]).split(area)[1],
-                buf,
-            );
+        if self.render {
+            Gauge::default()
+                .ratio(self.progress)
+                .label(self.progress_label.clone())
+                .gauge_style(Style::new().white().on_black())
+                .block(Block::bordered().title_top(self.title.clone()))
+                .render(
+                    Layout::vertical([Constraint::Fill(100), Constraint::Length(3)]).split(area)[1],
+                    buf,
+                );
+        } else {
+            Clear::default().render(area, buf);
+        }
     }
     fn constraint(&self) -> Constraint {
         Constraint::Fill(100)
@@ -246,6 +255,7 @@ impl Menu for AudioWidgetMenu {
                 self.title = track.title.clone();
                 self.progress_label = app_state.player.get_progress_label();
                 self.progress = app_state.player.get_progress();
+                self.render = true;
             }
             None => self.render = false,
         };

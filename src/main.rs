@@ -3,6 +3,7 @@
 
 use config::Config;
 use lazy_static::lazy_static;
+use ratatui::{DefaultTerminal, widgets::RatatuiLogo};
 
 use crate::app::App;
 
@@ -33,6 +34,7 @@ async fn main() -> color_eyre::Result<()> {
     logging::initialize_logging()?;
     trace_dbg!("Logging Initialized");
     let mut terminal = ratatui::init();
+    render_splash_screen(&mut terminal)?;
     if let Err(report) = App::new().await.run(&mut terminal).await {
         crate::fatal::FatalWidget(report).run(&mut terminal).await?;
     }
@@ -41,4 +43,12 @@ async fn main() -> color_eyre::Result<()> {
     Ok(())
 }
 
-// TODO -> dyn Options updated by app_state
+fn render_splash_screen(terminal: &mut DefaultTerminal) -> color_eyre::Result<()> {
+    terminal.draw(|frame| {
+        let area = frame.area();
+        frame.render_widget(RatatuiLogo::small(), area);
+    })?;
+    Ok(())
+}
+
+// TODO -> disable scanning
